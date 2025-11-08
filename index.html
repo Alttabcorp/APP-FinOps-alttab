@@ -14,41 +14,6 @@
     <main>
         <div class="container">
             <section class="card">
-                <h2>Entrada de Dados</h2>
-                <form id="financialForm">
-                    <div class="form-group">
-                        <label for="valorRecebido">Valor Total Recebido:</label>
-                        <input type="number" id="valorRecebido" required step="0.01">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="custoAgua">Água:</label>
-                        <input type="number" id="custoAgua" required step="0.01">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="custoEnergia">Energia:</label>
-                        <input type="number" id="custoEnergia" required step="0.01">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="custoAluguel">Aluguel:</label>
-                        <input type="number" id="custoAluguel" required step="0.01">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="custoInternet">Internet:</label>
-                        <input type="number" id="custoInternet" required step="0.01">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="gastoCartao">Gastos no Cartão:</label>
-                        <input type="number" id="gastoCartao" required step="0.01">
-                    </div>
-                </form>
-            </section>
-
-            <section class="card">
                 <h2>Resumo Financeiro</h2>
                 <div class="resumo">
                     <div class="resumo-item">
@@ -84,6 +49,77 @@
             <canvas id="grafico"></canvas>
         </section>
     </main>
+
+    <!-- Botão Flutuante de Configurações -->
+    <button id="openConfigBtn" class="floating-btn" title="Abrir Configurações">
+        <span class="floating-icon">⚙️</span>
+    </button>
+
+    <!-- Modal de Configurações -->
+    <div id="configModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Configurações</h2>
+            
+            <!-- Abas -->
+            <div class="tab-container">
+                <div class="tab-buttons">
+                    <button class="tab-btn active" data-tab="receitas">Receitas</button>
+                    <button class="tab-btn" data-tab="despesas">Despesas</button>
+                    <button class="tab-btn" data-tab="gerenciamento">Gerenciamento</button>
+                </div>
+                
+                <div class="tab-content">
+                    <div id="receitas" class="tab-pane active">
+                        <section class="config-section">
+                            <h3>Receitas</h3>
+                            <div id="receitasContainer">
+                                <!-- Receitas serão adicionadas dinamicamente aqui -->
+                            </div>
+                            <button id="addReceitaBtn" class="btn btn-secondary">Adicionar Receita</button>
+                        </section>
+                    </div>
+                    
+                    <div id="despesas" class="tab-pane">
+                        <section class="config-section">
+                            <h3>Despesas Fixas</h3>
+                            <div id="despesasFixasContainer">
+                                <!-- Despesas fixas serão adicionadas dinamicamente aqui -->
+                            </div>
+                            <button id="addDespesaFixaBtn" class="btn btn-secondary">Adicionar Despesa Fixa</button>
+                        </section>
+                        
+                        <section class="config-section">
+                            <h3>Despesas Variáveis</h3>
+                            <div id="despesasVariaveisContainer">
+                                <!-- Despesas variáveis serão adicionadas dinamicamente aqui -->
+                            </div>
+                            <button id="addDespesaVariavelBtn" class="btn btn-secondary">Adicionar Despesa Variável</button>
+                        </section>
+                    </div>
+                    
+                    <div id="gerenciamento" class="tab-pane">
+                        <section class="config-section">
+                            <h3>Gerenciamento de Configurações</h3>
+                            <div class="config-buttons">
+                                <button id="exportBtn" class="btn">Exportar Configurações</button>
+                                <button id="importBtn" class="btn">Importar Configurações</button>
+                                <input type="file" id="importFile" accept=".json" style="display: none;">
+                                <button id="resetBtn" class="btn btn-danger">Resetar Configurações</button>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Botões de ação -->
+            <div class="modal-actions">
+                <button id="saveBtn" class="btn">Salvar Configurações</button>
+                <button id="cancelBtn" class="btn btn-secondary">Cancelar</button>
+
+            </div>
+        </div>
+    </div>
 
     <footer>
         <p>Alttab Corp © 2025</p>

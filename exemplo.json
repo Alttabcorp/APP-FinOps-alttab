@@ -1,0 +1,44 @@
+{
+  "receitas": [
+    {
+      "nome": "Salário",
+      "valor": "5000.00"
+    },
+    {
+      "nome": "Freelance",
+      "valor": "800.00"
+    }
+  ],
+  "despesasFixas": [
+    {
+      "nome": "Água",
+      "valor": "150.00"
+    },
+    {
+      "nome": "Energia",
+      "valor": "200.00"
+    },
+    {
+      "nome": "Aluguel",
+      "valor": "1200.00"
+    },
+    {
+      "nome": "Internet",
+      "valor": "100.00"
+    }
+  ],
+  "despesasVariaveis": [
+    {
+      "nome": "Gastos no Cartão",
+      "valor": "800.00"
+    },
+    {
+      "nome": "Supermercado",
+      "valor": "600.00"
+    },
+    {
+      "nome": "Lazer",
+      "valor": "300.00"
+    }
+  ]
+}

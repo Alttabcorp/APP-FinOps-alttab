@@ -97,8 +97,8 @@
 
         canvas {
             width: 100%;
-            max-width: 600px;
-            height: 300px;
+            max-width: 100%;
+            height: 400px;
             margin: 1rem auto;
             display: block;
         }
@@ -307,7 +307,11 @@
             font-weight: 600;
         }
 
-        .receita-item {
+        .receita-item,
+        .saldo-item,
+        .extra-item,
+        .conta-item,
+        .extra-mes-item {
             display: flex;
             gap: 0.5rem;
             align-items: center;
@@ -317,11 +321,25 @@
             border-radius: 4px;
         }
 
-        .receita-item input {
+        .receita-item input,
+        .saldo-item input,
+        .extra-item input,
+        .conta-item input,
+        .extra-mes-item input {
             flex: 1;
         }
+        
+        .saldo-item label,
+        .config-section label {
+            color: var(--text-color);
+            font-size: 0.95rem;
+        }
 
-        .receita-item .btn {
+        .receita-item .btn,
+        .saldo-item .btn,
+        .extra-item .btn,
+        .conta-item .btn,
+        .extra-mes-item .btn {
             padding: 0.25rem 0.5rem;
             font-size: 0.8rem;
         }
@@ -399,4 +417,627 @@
     margin-top: 20px;
     padding-top: 20px;
     border-top: 1px solid #e0e0e0;
+}
+
+/* Investimentos Grid */
+.investimentos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.investimento-item {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.investimento-item h3 {
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+    opacity: 0.9;
+}
+
+.investimento-item p {
+    font-size: 1.4rem;
+    font-weight: bold;
+}
+
+/* Distribuição Final Grid */
+.distribuicao-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+}
+
+.distribuicao-item {
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    color: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+}
+
+.distribuicao-item h3 {
+    font-size: 0.95rem;
+    margin-bottom: 0.5rem;
+    opacity: 0.9;
+}
+
+.distribuicao-item p {
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+/* Benefícios Container */
+.beneficios-container {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    padding: 1rem;
+    background-color: rgba(26, 115, 232, 0.05);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+
+.beneficio-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.beneficio-item label {
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 0.25rem;
+}
+
+.beneficio-item small {
+    color: #6c757d;
+    font-size: 0.85rem;
+    font-style: italic;
+}
+
+.beneficio-item input {
+    width: 100%;
+    padding: 0.7rem;
+    border: 2px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+}
+
+.beneficio-item input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+@media (min-width: 768px) {
+    .beneficios-container {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+/* ===== NOVO LAYOUT - VISUALIZAÇÃO MELHORADA ===== */
+
+/* Resumo Principal no Topo */
+.resumo-principal {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.resumo-box {
+    padding: 2rem;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    transition: transform 0.2s;
+}
+
+.resumo-box:hover {
+    transform: translateY(-2px);
+}
+
+.resumo-box.ganhou {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+}
+
+.resumo-box.gastou {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: white;
+}
+
+.resumo-box.sobrou {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: white;
+}
+
+.resumo-label {
+    font-size: 1rem;
+    font-weight: 600;
+    opacity: 0.9;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.resumo-valor {
+    font-size: 2.5rem;
+    font-weight: bold;
+}
+
+/* Dashboard Grid */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+@media (min-width: 1024px) {
+    .dashboard-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+    .dashboard-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Tabelas de Valores */
+.tabela-valores table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+}
+
+.tabela-valores th {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 0.75rem;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.tabela-valores td {
+    padding: 0.75rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.tabela-valores tbody tr:hover {
+    background-color: #f9fafb;
+}
+
+.tabela-valores .total-row {
+    background-color: #f3f4f6;
+    font-weight: bold;
+}
+
+.tabela-valores .total-row.invest {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.1));
+}
+
+.tabela-valores .subtotal-row {
+    background-color: #f9fafb;
+    border-top: 2px solid var(--primary-color);
+}
+
+/* Inputs em Tabela */
+.input-tabela {
+    width: 100%;
+    padding: 0.4rem;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    text-align: right;
+}
+
+.input-tabela:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.1);
+}
+
+/* Display values (read-only) */
+.tabela-valores tbody td:not(:has(input)) {
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+/* Form Group Inline */
+.form-group-inline {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.form-group-inline label {
+    font-weight: 600;
+    margin: 0;
+    flex-shrink: 0;
+}
+
+.input-compact {
+    flex: 1;
+    padding: 0.6rem;
+    border: 2px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 600;
+    text-align: right;
+}
+
+.input-compact:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+/* Total Despesas */
+.total-despesas {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+    padding: 1rem;
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(220, 38, 38, 0.1));
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: bold;
+}
+
+/* Tabela Investimentos */
+.tabela-investimentos table {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), rgba(5, 150, 105, 0.03));
+}
+
+.tabela-investimentos thead th {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    padding: 0.75rem;
+}
+
+.tabela-investimentos tbody td:first-child {
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.tabela-investimentos td:last-child {
+    padding: 1rem 0.75rem;
+}
+
+/* Distribuição Boxes */
+.distribuicao-boxes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.dist-box {
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    color: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    box-shadow: 0 4px 8px rgba(139, 92, 246, 0.3);
+}
+
+.dist-label {
+    font-size: 0.9rem;
+    opacity: 0.9;
+    font-weight: 600;
+}
+
+.dist-valor {
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+/* Sugestões Box */
+.sugestoes-box {
+    margin-top: 1.5rem;
+    padding: 1.5rem;
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border-radius: 8px;
+    border: 2px solid #fbbf24;
+}
+
+.sugestoes-box h3 {
+    color: #92400e;
+    margin: 0 0 1rem 0;
+    font-size: 1rem;
+}
+
+.sugestao-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    color: #78350f;
+    font-weight: 600;
+}
+
+.sugestao-item span:last-child {
+    font-size: 1.1rem;
+    color: #92400e;
+}
+
+/* Benefícios Tabela */
+.beneficios-tabela table {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.05), rgba(37, 99, 235, 0.03));
+}
+
+.beneficios-tabela th {
+    background-color: #3b82f6;
+}
+
+/* Animações e Estados */
+.card {
+    transition: box-shadow 0.3s ease;
+}
+
+.card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* Destaque para valores negativos */
+.resumo-box.sobrou .resumo-valor {
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.02);
+    }
+}
+
+/* Ajustes responsivos adicionais */
+@media (max-width: 767px) {
+    .resumo-principal {
+        grid-template-columns: 1fr;
+    }
+    
+    .resumo-valor {
+        font-size: 2rem;
+    }
+    
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .distribuicao-boxes {
+        grid-template-columns: 1fr;
+    }
+    
+    .tabela-valores th,
+    .tabela-valores td {
+        padding: 0.5rem;
+        font-size: 0.85rem;
+    }
+    
+    /* Ajustes para tabela de variáveis em mobile */
+    .tabela-variaveis th,
+    .tabela-variaveis td {
+        padding: 0.4rem;
+        font-size: 0.8rem;
+    }
+    
+    .tabela-variaveis input.input-tabela {
+        max-width: 70px;
+        font-size: 0.85rem;
+        padding: 0.3rem;
+    }
+    
+    /* Ajustes para investimentos em mobile */
+    .invest-split {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+        justify-items: stretch;
+    }
+    
+    .invest-split > * {
+        width: 100%;
+    }
+    
+    .invest-value.sugestao {
+        text-align: center;
+        padding: 0.4rem;
+        background: rgba(59, 130, 246, 0.1);
+        border-radius: 6px;
+    }
+    
+    .input-mini {
+        width: 100%;
+    }
+}
+
+/* Melhorias visuais na tabela */
+.tabela-valores tbody tr {
+    transition: background-color 0.2s;
+}
+
+.tabela-valores tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* Foco nos inputs */
+input:focus {
+    transition: all 0.2s ease;
+}
+
+/* Info Boxes */
+.info-box {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(37, 99, 235, 0.05));
+    border-radius: 8px;
+    margin-top: 1rem;
+    font-size: 1.05rem;
+    font-weight: 600;
+}
+
+.info-box.success {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.1));
+}
+
+.info-box strong {
+    color: var(--text-color);
+}
+
+.info-box span {
+    color: var(--primary-color);
+    font-size: 1.2rem;
+}
+
+.info-box.success span {
+    color: #059669;
+}
+
+/* Tabela Variáveis (3 colunas) */
+.tabela-variaveis table {
+    background: linear-gradient(135deg, rgba(251, 188, 5, 0.05), rgba(255, 193, 7, 0.03));
+    width: 100%;
+}
+
+.tabela-variaveis th {
+    background-color: #f59e0b;
+    text-align: center;
+    padding: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.tabela-variaveis td {
+    text-align: center;
+    padding: 0.5rem;
+}
+
+.tabela-variaveis td:first-child {
+    text-align: left;
+    font-weight: 600;
+}
+
+.tabela-variaveis input.input-tabela {
+    max-width: 100px;
+    text-align: right;
+}
+
+/* Input Mini para ajustes */
+.input-mini {
+    width: 90px;
+    padding: 0.4rem 0.5rem;
+    border: 2px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    text-align: right;
+    background: white;
+    transition: all 0.2s;
+}
+
+.input-mini:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Input com preenchimento automático */
+.input-mini.input-auto {
+    background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+    border-color: #60a5fa;
+    color: #1e40af;
+    font-weight: 600;
+    pointer-events: none;
+}
+
+/* Invest Header */
+.invest-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    gap: 1rem;
+    font-size: 0.8rem;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.invest-header span {
+    flex: 1;
+    text-align: center;
+}
+
+.invest-header span:first-child {
+    text-align: right;
+}
+
+.invest-header span:last-child {
+    text-align: left;
+}
+
+/* Invest Split - layout para sugestão + input */
+.invest-split {
+    display: grid;
+    grid-template-columns: 1fr 120px;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.3rem 0;
+    justify-items: end;
+}
+
+.invest-value.sugestao {
+    font-size: 1rem;
+    color: #3b82f6;
+    font-weight: 600;
+    text-align: right;
+}
+
+/* Info Investimentos */
+.info-investimentos ul {
+    list-style: disc;
+}
+
+.info-investimentos li {
+    margin: 0.3rem 0;
+    line-height: 1.4;
+}
+
+/* Distribuição Boxes - Meta */
+.dist-box.meta {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+}
+
+/* Sugestões Finais */
+.sugestoes-finais {
+    margin-top: 2rem;
+}
+
+.sugestoes-finais .distribuicao-boxes {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+/* Config Info */
+.config-info {
+    color: #6b7280;
+    font-size: 0.9rem;
+    font-style: italic;
+    margin-bottom: 1rem;
 }

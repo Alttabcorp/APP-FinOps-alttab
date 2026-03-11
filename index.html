@@ -12,40 +12,241 @@
     </header>
 
     <main>
-        <div class="container">
+        <!-- RESUMO PRINCIPAL -->
+        <section class="resumo-principal">
+            <div class="resumo-box ganhou">
+                <span class="resumo-label">Ganhou</span>
+                <span class="resumo-valor" id="resumoGanhou">R$ 0,00</span>
+            </div>
+            <div class="resumo-box gastou">
+                <span class="resumo-label">Gasto</span>
+                <span class="resumo-valor" id="resumoGasto">R$ 0,00</span>
+            </div>
+            <div class="resumo-box sobrou">
+                <span class="resumo-label">Sobrou</span>
+                <span class="resumo-valor" id="resumoSobrou">R$ 0,00</span>
+            </div>
+        </section>
+
+        <!-- GRID PRINCIPAL -->
+        <div class="dashboard-grid">
+            <!-- COLUNA 1: SALDO E EXTRA -->
             <section class="card">
-                <h2>Resumo Financeiro</h2>
-                <div class="resumo">
-                    <div class="resumo-item">
-                        <h3>Receita Total</h3>
-                        <p id="receitaTotal">R$ 0,00</p>
+                <h2>💵 Saldo</h2>
+                <div class="tabela-valores">
+                    <table>
+                        <tbody id="tabelaSaldo">
+                            <!-- Preenchido dinamicamente -->
+                        </tbody>
+                        <tfoot>
+                            <tr class="total-row">
+                                <td><strong>Total Saldo</strong></td>
+                                <td><strong id="totalSaldo">R$ 0,00</strong></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <h3 style="margin-top: 1.5rem;">💳 Extra</h3>
+                <div class="tabela-valores">
+                    <table>
+                        <tbody id="tabelaExtra">
+                            <!-- Preenchido dinamicamente -->
+                        </tbody>
+                        <tfoot>
+                            <tr class="subtotal-row">
+                                <td><strong>Total Extra</strong></td>
+                                <td><strong id="totalExtra">R$ 0,00</strong></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div class="info-box" style="margin-top: 1rem;">
+                    <strong>Ganho Mês:</strong>
+                    <span id="ganhoMes">R$ 0,00</span>
+                </div>
+            </section>
+
+            <!-- COLUNA 2: CONTAS E DESPESAS -->
+            <section class="card">
+                <h2>📋 Contas Fixas</h2>
+                <div class="tabela-valores">
+                    <table>
+                        <tbody id="tabelaContas">
+                            <!-- Preenchido dinamicamente -->
+                        </tbody>
+                        <tfoot>
+                            <tr class="total-row">
+                                <td><strong>Total Contas</strong></td>
+                                <td><strong id="totalContas">R$ 0,00</strong></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <h3 style="margin-top: 1.5rem;">📦 Extra Mês</h3>
+                <div class="tabela-valores">
+                    <table>
+                        <tbody id="tabelaExtraMes">
+                            <!-- Preenchido dinamicamente -->
+                        </tbody>
+                        <tfoot>
+                            <tr class="subtotal-row">
+                                <td><strong>Total Extra</strong></td>
+                                <td><strong id="totalExtraMes">R$ 0,00</strong></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div class="info-box" style="margin-top: 1rem;">
+                    <strong>Gasto Mensal:</strong>
+                    <span id="gastoMensal">R$ 0,00</span>
+                </div>
+
+                <div class="info-box success">
+                    <strong>Saldo Contas:</strong>
+                    <span id="saldoContas">R$ 0,00</span>
+                </div>
+            </section>
+
+            <!-- COLUNA 3: DESPESAS VARIÁVEIS E INVESTIMENTOS -->
+            <section class="card">
+                <h2>💸 Despesas Variáveis</h2>
+                <div class="tabela-valores tabela-variaveis">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Sugestão</th>
+                                <th>Real</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Feira</strong></td>
+                                <td id="feirasugestao">R$ 0,00</td>
+                                <td><input type="number" id="feiraReal" value="0" step="0.01" class="input-tabela"></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Cartão</strong></td>
+                                <td id="cartaoSugestao">R$ 0,00</td>
+                                <td><input type="number" id="cartaoReal" value="0" step="0.01" class="input-tabela"></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Gasolina</strong></td>
+                                <td id="gasolinaSugestao">R$ 0,00</td>
+                                <td><input type="number" id="gasolinaReal" value="0" step="0.01" class="input-tabela"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3 style="margin-top: 1.5rem;">💰 Investimentos</h3>
+                <div class="tabela-valores tabela-investimentos">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Investimento</th>
+                                <th style="text-align: center;">
+                                    <div class="invest-header">
+                                        <span>Sugestão</span>
+                                        <span>Real Aplicado</span>
+                                    </div>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Fundo Imobiliário</strong></td>
+                                <td>
+                                    <div class="invest-split">
+                                        <span id="fundoSugestao" class="invest-value sugestao">R$ 0,00</span>
+                                        <input type="number" id="fundoReal" value="50" step="0.01" class="input-mini" placeholder="0,00">
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Alttab</strong></td>
+                                <td>
+                                    <div class="invest-split">
+                                        <span id="alttabSugestao" class="invest-value sugestao">R$ 0,00</span>
+                                        <input type="number" id="alttabReal" value="100" step="0.01" class="input-mini" placeholder="0,00">
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Poupança</strong><br><small style="color: #6b7280;">(10% do saldo - automático)</small></td>
+                                <td>
+                                    <div class="invest-split">
+                                        <span id="poupancaSugestao" class="invest-value sugestao">R$ 0,00</span>
+                                        <input type="number" id="poupancaReal" value="0" step="0.01" class="input-mini" placeholder="0,00" >
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr class="total-row invest">
+                                <td><strong>Total Investido</strong></td>
+                                <td><strong id="totalInvestido" style="text-align: right; font-size: 1.2rem;">R$ 0,00</strong></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                
+                <div class="info-investimentos" style="margin-top: 1rem;">
+                    <div class="config-info" style="font-size: 0.85rem; padding: 0.8rem; background: rgba(245, 158, 11, 0.1); border-radius: 6px; border-left: 3px solid #f59e0b; margin-bottom: 0.5rem;">
+                        <strong>� Como funciona:</strong><br>
+                        <ul style="margin: 0.5rem 0 0 1.2rem; padding: 0;">
+                            <li><strong>Sugestão:</strong> Valor calculado automaticamente pelo sistema</li>
+                            <li><strong>Real Aplicado:</strong> Valor que você realmente investiu (preencha manualmente)</li>
+                            <li><strong>Variação:</strong> Diferença entre o real aplicado e a sugestão
+                                <br><small style="color: #6b7280;">🟢 Verde = investiu mais que o sugerido | 🔴 Vermelho = investiu menos</small>
+                            </li>
+                        </ul>
                     </div>
-                    <div class="resumo-item">
-                        <h3>Poupança (10%)</h3>
-                        <p id="poupanca">R$ 0,00</p>
+                    <div class="config-info" style="font-size: 0.85rem; padding: 0.8rem; background: rgba(59, 130, 246, 0.1); border-radius: 6px; border-left: 3px solid #3b82f6; margin-bottom: 0.5rem;">
+                        <strong>📊 Cálculo das Sugestões:</strong><br>
+                        <ul style="margin: 0.5rem 0 0 1.2rem; padding: 0;">
+                            <li><strong>Fundo Imobiliário:</strong> (Vale-Transporte - Gasolina Real) + Provento Fundo + Reaplicação Automática</li>
+                            <li><strong>Alttab:</strong> Valor fixo sugerido de R$ 100,00</li>
+                            <li><strong>Poupança:</strong> 10% do Total Saldo <span style="background: #dbeafe; padding: 0.1rem 0.4rem; border-radius: 4px; color: #1e40af; font-weight: 600;">✨ Automático</span></li>
+                        </ul>
                     </div>
-                    <div class="resumo-item">
-                        <h3>Sociedade</h3>
-                        <p id="sociedade">R$ 100,00</p>
-                    </div>
-                    <div class="resumo-item">
-                        <h3>Custos Fixos</h3>
-                        <p id="custosFixos">R$ 0,00</p>
-                    </div>
-                    <div class="resumo-item">
-                        <h3>Gastos Variáveis</h3>
-                        <p id="gastosVariaveis">R$ 0,00</p>
-                    </div>
-                    <div class="resumo-item">
-                        <h3>Saldo Final</h3>
-                        <p id="saldoFinal">R$ 0,00</p>
+                    <div class="config-info" style="font-size: 0.85rem; padding: 0.8rem; background: rgba(16, 185, 129, 0.1); border-radius: 6px; border-left: 3px solid #10b981;">
+                        <strong>🔄 Reaplicação Automática do Provento:</strong><br>
+                        Quando o <strong>Provento Fundo</strong> (configurado em Extra) atingir <strong>≥ R$ 100,00</strong>, o sistema automaticamente:
+                        <ul style="margin: 0.5rem 0 0 1.2rem; padding: 0;">
+                            <li><strong>50%</strong> é adicionado à sugestão do Fundo Imobiliário</li>
+                            <li><strong>50%</strong> fica disponível para você alocar em outros investimentos</li>
+                        </ul>
+                        <small style="color: #6b7280; display: block; margin-top: 0.5rem;">
+                            💡 <em>O Provento Fundo é identificado automaticamente nos itens de Extra pelo nome (busca por "provento" ou "fundo")</em>
+                        </small>
                     </div>
                 </div>
             </section>
         </div>
 
+        <!-- SUGESTÕES FINAIS -->
+        <section class="card sugestoes-finais">
+            <h2>🎯 Distribuição Final</h2>
+            <div class="distribuicao-boxes">
+                <div class="dist-box meta">
+                    <span class="dist-label">Meta Final (10%)</span>
+                    <span class="dist-valor" id="metaFinal">R$ 0,00</span>
+                </div>
+                <div class="dist-box">
+                    <span class="dist-label">Gasto Individual</span>
+                    <span class="dist-valor" id="gastoIndividual">R$ 0,00</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- GRÁFICO -->
         <section class="card" style="margin-top: 2rem;">
-            <h2>Distribuição dos Valores</h2>
+            <h2>📊 Visualização Gráfica</h2>
             <canvas id="grafico"></canvas>
         </section>
     </main>
@@ -72,29 +273,38 @@
                 <div class="tab-content">
                     <div id="receitas" class="tab-pane active">
                         <section class="config-section">
-                            <h3>Receitas</h3>
-                            <div id="receitasContainer">
-                                <!-- Receitas serão adicionadas dinamicamente aqui -->
+                            <h3>💵 Saldo</h3>
+                            <div id="saldoContainer">
+                                <!-- Itens de saldo adicionados dinamicamente -->
                             </div>
-                            <button id="addReceitaBtn" class="btn btn-secondary">Adicionar Receita</button>
+                            <button id="addSaldoBtn" class="btn btn-secondary">Adicionar Item de Saldo</button>
+                        </section>
+
+                        <section class="config-section">
+                            <h3>💳 Extra</h3>
+                            <p class="config-info">Adicione os valores extras recebidos mensalmente</p>
+                            <div id="extraContainer">
+                                <!-- Itens de extra adicionados dinamicamente -->
+                            </div>
+                            <button id="addExtraBtn" class="btn btn-secondary">Adicionar Item de Extra</button>
                         </section>
                     </div>
                     
                     <div id="despesas" class="tab-pane">
                         <section class="config-section">
-                            <h3>Despesas Fixas</h3>
-                            <div id="despesasFixasContainer">
-                                <!-- Despesas fixas serão adicionadas dinamicamente aqui -->
+                            <h3>📋 Contas Fixas</h3>
+                            <div id="contasContainer">
+                                <!-- Contas fixas adicionadas dinamicamente -->
                             </div>
-                            <button id="addDespesaFixaBtn" class="btn btn-secondary">Adicionar Despesa Fixa</button>
+                            <button id="addContaBtn" class="btn btn-secondary">Adicionar Conta Fixa</button>
                         </section>
                         
                         <section class="config-section">
-                            <h3>Despesas Variáveis</h3>
-                            <div id="despesasVariaveisContainer">
-                                <!-- Despesas variáveis serão adicionadas dinamicamente aqui -->
+                            <h3>📦 Extra Mês</h3>
+                            <div id="extraMesContainer">
+                                <!-- Despesas extras do mês adicionadas dinamicamente -->
                             </div>
-                            <button id="addDespesaVariavelBtn" class="btn btn-secondary">Adicionar Despesa Variável</button>
+                            <button id="addExtraMesBtn" class="btn btn-secondary">Adicionar Extra do Mês</button>
                         </section>
                     </div>
                     
@@ -128,9 +338,10 @@
     <!-- Scripts JavaScript organizados por funcionalidade -->
     <script src="js/utils.js"></script>
     <script src="js/data.js"></script>
-    <script src="js/receitas.js"></script>
-    <script src="js/despesas-fixas.js"></script>
-    <script src="js/despesas-variaveis.js"></script>
+    <script src="js/saldo.js"></script>
+    <script src="js/extra.js"></script>
+    <script src="js/contas.js"></script>
+    <script src="js/extra-mes.js"></script>
     <script src="js/calculos.js"></script>
     <script src="js/grafico.js"></script>
     <script src="js/modal.js"></script>

@@ -1,4 +1,9 @@
 {
+  "saldoInicial": "1000",
+  "vtRecebido": "400",
+  "vtGastoReal": "350",
+  "vaRecebido": "600",
+  "vaGastoReal": "550",
   "receitas": [
     {
       "nome": "Salário",

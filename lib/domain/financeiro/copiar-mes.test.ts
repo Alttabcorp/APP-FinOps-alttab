@@ -23,7 +23,7 @@ describe("clonarItensParaNovoMes", () => {
     item({ tipo: "EXTRA_MES", nome: "Gás", valor: 110, ordem: 3 }),
   ];
 
-  it("copia só contas, no padrão de abrir o mês pela url", () => {
+  it("sem lista, copia só o valor das contas fixas", () => {
     const clonados = clonarItensParaNovoMes(origem);
     expect(clonados.map((linha) => linha.valor)).toEqual([0, 0, 80, 0]);
     expect(clonados.map((linha) => linha.tipo)).toEqual(["SALDO", "EXTRA", "CONTA", "EXTRA_MES"]);

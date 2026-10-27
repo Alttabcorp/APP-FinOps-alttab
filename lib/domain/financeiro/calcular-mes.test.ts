@@ -39,8 +39,11 @@ describe("calcularMes", () => {
     quase(r.totalSaldo, 5469.64);
     quase(r.ganhoMes, 6084.94);
     quase(r.saldoContas, 3921.71);
-    quase(r.investimentos.fundo.base, 19.21);
+    quase(r.investimentos.fundo.base, 50);
     quase(r.investimentos.fundo.ajuste, 22.4);
+    quase(r.investimentos.fundo.sugestao, 72.4);
+    quase(r.investimentos.fundo.proximo, 0);
+    expect(r.investimentos.fundo.atingiuAlvo).toBe(false);
     quase(r.investimentos.poupanca.sugestao, 546.964);
     quase(
       r.distribuicao.gastoPessoal + r.distribuicao.reposicaoMeta + r.distribuicao.metaFinal,
@@ -60,11 +63,27 @@ describe("calcularMes", () => {
       investimentos: { fundo: 0, alttab: 0, poupanca: 0, poupancaEditado: true },
     });
 
-    quase(r.investimentos.fundo.base, 80);
-    quase(r.investimentos.fundo.ajuste, 100);
+    quase(r.investimentos.fundo.base, 50);
+    quase(r.investimentos.fundo.ajuste, 50);
     quase(r.rendimento.paraContas, 0);
-    quase(r.investimentos.fundo.sugestao, 180);
+    quase(r.investimentos.fundo.sugestao, 100);
+    quase(r.investimentos.fundo.proximo, 50);
+    expect(r.investimentos.fundo.atingiuAlvo).toBe(true);
     expect(r.rendimento.apertado).toBe(false);
+  });
+
+  it("reaplica o rendimento inteiro no fundo enquanto ele rende menos de R$ 100", () => {
+    const r = calcularMes({
+      saldo: [{ nome: "Salário", valor: 2000 }],
+      extra: [{ nome: "Provento", valor: 40, papel: "PROVENTO_FUNDO" }],
+      investimentos: { fundo: 0, alttab: 0, poupanca: 0, poupancaEditado: true },
+    });
+
+    expect(r.investimentos.fundo.atingiuAlvo).toBe(false);
+    quase(r.investimentos.fundo.base, 50);
+    quase(r.investimentos.fundo.ajuste, 40);
+    quase(r.investimentos.fundo.sugestao, 90);
+    quase(r.investimentos.fundo.proximo, 0);
   });
 
   it("usa o rendimento nas contas quando o mês aperta", () => {
@@ -83,6 +102,9 @@ describe("calcularMes", () => {
     quase(r.rendimento.reinvestido, 0);
     quase(r.saldoContas, 0);
     quase(r.investimentos.fundo.ajuste, 0);
+    quase(r.investimentos.fundo.base, 0);
+    quase(r.investimentos.fundo.sugestao, 0);
+    quase(r.investimentos.alttab.sugestao, 0);
   });
 
   it("desconta IPTU e domínio do caixa do mês", () => {
@@ -112,7 +134,7 @@ describe("calcularMes", () => {
     });
     quase(r.distribuicao.gastoPessoal, 400);
     quase(r.distribuicao.reposicaoMeta, 200);
-    quase(r.distribuicao.metaFinal, 100);
+    quase(r.distribuicao.metaFinal, 50);
   });
 
   it("usa o vale-transporte no caixa das contas e deixa o VA só na feira", () => {
@@ -130,6 +152,36 @@ describe("calcularMes", () => {
     quase(r.saldoContas, 900);
     quase(r.despesasVariaveis.feira.sugestao, 400);
     quase(r.valeAlimentacao, 400);
+  });
+
+  it("usa o que sobra depois das contas como teto do cartão e avisa se estourar", () => {
+    const cabe = calcularMes({
+      saldo: [{ nome: "Salário", valor: 3000 }],
+      contas: [{ nome: "Internet", valor: 800 }],
+      cartaoFixo: 200,
+      cartaoParcelas: 100,
+      despesasVariaveis: { feira: 0, cartao: 0, gasolina: 0 },
+      investimentos: { fundo: 0, alttab: 0, poupanca: 0, poupancaEditado: true },
+    });
+    quase(cabe.saldoContas, 2200);
+    quase(cabe.despesasVariaveis.cartao.teto, 2200);
+    quase(cabe.despesasVariaveis.cartao.fixo, 200);
+    quase(cabe.despesasVariaveis.cartao.disponivel, 1900);
+    quase(cabe.despesasVariaveis.cartao.fatura, 300);
+    expect(cabe.despesasVariaveis.cartao.estoura).toBe(false);
+
+    const estoura = calcularMes({
+      saldo: [{ nome: "Salário", valor: 1000 }],
+      contas: [{ nome: "Internet", valor: 800 }],
+      cartaoFixo: 150,
+      cartaoParcelas: 50,
+      despesasVariaveis: { feira: 0, cartao: 100, gasolina: 0 },
+      investimentos: { fundo: 0, alttab: 0, poupanca: 0, poupancaEditado: true },
+    });
+    quase(estoura.despesasVariaveis.cartao.teto, 200);
+    quase(estoura.despesasVariaveis.cartao.fatura, 300);
+    expect(estoura.despesasVariaveis.cartao.estoura).toBe(true);
+    quase(estoura.despesasVariaveis.cartao.cabe, 0);
   });
 
   it("identifica extras pelo nome quando o papel não vem preenchido", () => {

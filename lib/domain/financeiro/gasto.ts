@@ -116,6 +116,7 @@ export type EntradaGastosMes = {
   cartaoAvulso: number;
   faturaCartao: number;
   parcelasCartao?: DetalheGasto[];
+  recorrentesCartao?: DetalheGasto[];
 };
 
 export const agruparGastosDoMes = (entrada: EntradaGastosMes) => {
@@ -133,6 +134,9 @@ export const agruparGastosDoMes = (entrada: EntradaGastosMes) => {
 
   const avulso = numero(entrada.cartaoAvulso);
   const fatura = numero(entrada.faturaCartao);
+  if (entrada.recorrentesCartao?.length) {
+    entrada.recorrentesCartao.forEach((item) => adicionar("cartao", item.nome, item.valor));
+  }
   if (entrada.parcelasCartao?.length) {
     entrada.parcelasCartao.forEach((parcela) => adicionar("cartao", parcela.nome, parcela.valor));
   } else if (fatura > 0.005) {

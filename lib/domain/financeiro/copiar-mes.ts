@@ -12,6 +12,7 @@ export type ItemClonavel = {
 };
 
 export const TIPOS_COPIA_PADRAO: TipoItem[] = ["SALDO", "EXTRA", "CONTA"];
+// Abrir um mês novo usa este padrão: entradas e rendimento do mês anterior entram como previsão.
 
 export const GRUPOS_COPIA: { tipo: TipoItem; rotulo: string; detalhe: string }[] = [
   { tipo: "SALDO", rotulo: "Saldo", detalhe: "Empregos, bicos e outras entradas em dinheiro." },

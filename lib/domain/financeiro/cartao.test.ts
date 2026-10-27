@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { faturaDoMes, parcelaNaCompetencia, valorDaParcela } from "./cartao";
+import { faturaDoMes, parcelaNaCompetencia, planejarCartao, valorDaParcela } from "./cartao";
 
 describe("parcela de cartão", () => {
   const pc = {
@@ -26,5 +26,15 @@ describe("parcela de cartão", () => {
       "2026-10",
     );
     expect(fatura).toBeCloseTo(200, 2);
+  });
+
+  it("o teto do cartão é o que sobrou depois das contas", () => {
+    const plano = planejarCartao({ saldoContas: 2200, fixo: 200, parcelas: 100, avulso: 50 });
+    expect(plano.teto).toBeCloseTo(2200, 2);
+    expect(plano.disponivel).toBeCloseTo(1900, 2);
+    expect(plano.fatura).toBeCloseTo(350, 2);
+    expect(plano.cabe).toBeCloseTo(1850, 2);
+    expect(plano.estoura).toBe(false);
+    expect(planejarCartao({ saldoContas: 200, fixo: 150, parcelas: 100 }).estoura).toBe(true);
   });
 });

@@ -1,3 +1,4 @@
+import type { PlanoCartao } from "./cartao";
 import type { EtapaPrioridade } from "./prioridade";
 import type { DestinoRendimento } from "./rendimento";
 
@@ -40,6 +41,8 @@ export type EntradaMes = {
   };
   gastoPessoalAlvo?: number | null;
   reposicaoMeta?: number;
+  cartaoFixo?: number;
+  cartaoParcelas?: number;
 };
 
 export type ParSugestaoReal = {
@@ -64,11 +67,16 @@ export type ResultadoMes = {
   saldoContas: number;
   despesasVariaveis: {
     feira: ParSugestaoReal;
-    cartao: ParSugestaoReal;
+    cartao: ParSugestaoReal & PlanoCartao;
     gasolina: ParSugestaoReal;
   };
   investimentos: {
-    fundo: ParSugestaoReal & { base: number; ajuste: number };
+    fundo: ParSugestaoReal & {
+      base: number;
+      ajuste: number;
+      proximo: number;
+      atingiuAlvo: boolean;
+    };
     alttab: ParSugestaoReal;
     poupanca: ParSugestaoReal;
     totalInvestido: number;

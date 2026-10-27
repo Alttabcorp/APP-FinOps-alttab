@@ -1,3 +1,5 @@
+import { planejarCartao } from "./cartao";
+import { planejarFundo } from "./fundo";
 import { priorizarCaixa } from "./prioridade";
 import { destinarRendimento } from "./rendimento";
 import {
@@ -69,14 +71,16 @@ export const calcularMes = (input: Partial<EntradaMes> = {}): ResultadoMes => {
   const gastoMensal = totalContas + totalExtraMes + totalAnual;
 
   const feiraReal = Number(dv.feira) || 0;
-  const cartaoReal = Number(dv.cartao) || 0;
+  const cartaoAvulso = Number(dv.cartao) || 0;
+  const cartaoFixo = Number(input.cartaoFixo) || 0;
+  const cartaoParcelas = Number(input.cartaoParcelas) || 0;
   const gasolinaReal = Number(dv.gasolina) || 0;
 
   const caixaOperacional = totalSaldo + valeTransporte;
   const rendimento = destinarRendimento({
     caixa: caixaOperacional,
     contas: gastoMensal,
-    cartao: cartaoReal,
+    cartao: cartaoFixo + cartaoParcelas + cartaoAvulso,
     rendimentoFundo: proventoFundo,
     rendimentoPoupanca: proventoPoupanca,
   });
@@ -84,27 +88,38 @@ export const calcularMes = (input: Partial<EntradaMes> = {}): ResultadoMes => {
   const saldoContas = caixaOperacional + rendimento.paraContas - gastoMensal;
 
   const poupancaSugestao = totalSaldo * 0.1 + rendimento.reinvestidoPoupanca;
-  const alttabSugestao = ALTTAB_SUGESTAO;
-  const fundoBase = Math.max(0, valeTransporte - gasolinaReal);
-  const fundoSugestao = fundoBase + rendimento.reinvestidoFundo;
+  const alttabSugestao = rendimento.apertado ? 0 : ALTTAB_SUGESTAO;
+  const fundo = planejarFundo({
+    apertado: rendimento.apertado,
+    rendimentoFundo: proventoFundo,
+    reinvestidoFundo: rendimento.reinvestidoFundo,
+  });
+  const fundoBase = fundo.aporte;
+  const fundoSugestao = fundo.sugestao;
 
   const fundoReal = Number(inv.fundo) || 0;
   const alttabReal = Number(inv.alttab) || 0;
   const poupancaReal = inv.poupancaEditado ? Number(inv.poupanca) || 0 : poupancaSugestao;
   const totalInvestido = fundoReal + alttabReal + poupancaReal;
 
+  const cartao = planejarCartao({
+    saldoContas,
+    fixo: cartaoFixo,
+    parcelas: cartaoParcelas,
+    avulso: cartaoAvulso,
+  });
   const ganhou = ganhoMes;
-  const gasto = gastoMensal + totalInvestido + feiraReal + cartaoReal + gasolinaReal;
+  const gasto = gastoMensal + totalInvestido + feiraReal + cartao.fatura + gasolinaReal;
   const sobrou = ganhou - gasto;
 
   const prioridade = priorizarCaixa({
     caixa: caixaOperacional + rendimento.paraContas,
     valeAlimentacao,
     contas: gastoMensal,
-    cartao: cartaoReal,
+    cartao: cartao.fatura,
     poupanca: poupancaSugestao,
     feira: Math.max(feiraReal, valeAlimentacao),
-    investimento: fundoSugestao + alttabSugestao,
+    investimento: fundo.aporte + alttabSugestao,
     gastoPessoal: input.gastoPessoalAlvo,
     reposicaoMeta: input.reposicaoMeta,
   });
@@ -128,11 +143,20 @@ export const calcularMes = (input: Partial<EntradaMes> = {}): ResultadoMes => {
     saldoContas,
     despesasVariaveis: {
       feira: par(valeAlimentacao, feiraReal),
-      cartao: par(saldoContas - totalInvestido, cartaoReal),
+      cartao: {
+        ...par(cartao.teto, cartao.fatura),
+        ...cartao,
+      },
       gasolina: par(valeTransporte, gasolinaReal),
     },
     investimentos: {
-      fundo: { ...par(fundoSugestao, fundoReal), base: fundoBase, ajuste: rendimento.reinvestidoFundo },
+      fundo: {
+        ...par(fundoSugestao, fundoReal),
+        base: fundoBase,
+        ajuste: fundo.reaplicado,
+        proximo: fundo.proximo,
+        atingiuAlvo: fundo.atingiuAlvo,
+      },
       alttab: par(alttabSugestao, alttabReal),
       poupanca: par(poupancaSugestao, poupancaReal),
       totalInvestido,

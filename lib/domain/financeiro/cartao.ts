@@ -50,3 +50,52 @@ export const parcelasDoMes = (compras: CompraCartaoEntrada[], competencia: strin
 
 export const faturaDoMes = (compras: CompraCartaoEntrada[], competencia: string) =>
   round2(parcelasDoMes(compras, competencia).reduce((acc, parcela) => acc + parcela.valor, 0));
+
+export type RecorrenteCartaoEntrada = {
+  nome: string;
+  valor: number;
+};
+
+export const somarRecorrentes = (recorrentes: RecorrenteCartaoEntrada[]) =>
+  round2(recorrentes.reduce((acc, item) => acc + round2(Math.max(0, numero(item.valor))), 0));
+
+const numero = (valor: number | null | undefined) => {
+  const n = Number(valor);
+  return Number.isFinite(n) ? n : 0;
+};
+
+export type PlanoCartao = {
+  teto: number;
+  fixo: number;
+  parcelas: number;
+  avulso: number;
+  fatura: number;
+  disponivel: number;
+  cabe: number;
+  estoura: boolean;
+};
+
+export const planejarCartao = (entrada: {
+  saldoContas: number;
+  fixo?: number;
+  parcelas?: number;
+  avulso?: number;
+}): PlanoCartao => {
+  const teto = round2(Math.max(0, numero(entrada.saldoContas)));
+  const fixo = round2(Math.max(0, numero(entrada.fixo)));
+  const parcelas = round2(Math.max(0, numero(entrada.parcelas)));
+  const avulso = round2(Math.max(0, numero(entrada.avulso)));
+  const fatura = round2(fixo + parcelas + avulso);
+  const disponivel = round2(Math.max(0, teto - fixo - parcelas));
+  const cabe = round2(Math.max(0, teto - fatura));
+  return {
+    teto,
+    fixo,
+    parcelas,
+    avulso,
+    fatura,
+    disponivel,
+    cabe,
+    estoura: fatura > teto + 0.005,
+  };
+};

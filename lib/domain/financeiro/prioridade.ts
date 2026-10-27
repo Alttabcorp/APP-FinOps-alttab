@@ -5,7 +5,7 @@ export const ORDEM_PRIORIDADE = [
   { id: "feira", rotulo: "Feira" },
   { id: "investimento", rotulo: "Investimento" },
   { id: "pessoal", rotulo: "Gastos pessoais" },
-  { id: "reposicao", rotulo: "Devolver à meta" },
+  { id: "reposicao", rotulo: "Repor a retirada" },
   { id: "meta", rotulo: "Meta / investimento" },
 ] as const;
 

@@ -7,14 +7,15 @@ import {
   aplicarValoresDoMesAnterior,
   clonarItensParaNovoMes,
   tiposCopiaValidos,
+  TIPOS_COPIA_PADRAO,
   type ItemClonavel,
 } from "@/lib/domain/financeiro/copiar-mes";
-import { listarComprasCartao } from "@/lib/application/cartao-service";
+import { listarComprasCartao, listarRecorrentesCartao } from "@/lib/application/cartao-service";
 import { listarEmprestimosMeta } from "@/lib/application/emprestimo-meta-service";
 import { somarDevolucao } from "@/lib/domain/financeiro/emprestimo-meta";
 import { sincronizarContasAnuaisDoMes } from "@/lib/application/anual-service";
 import { obterPreferenciaCasa, sincronizarRendasDoMes } from "@/lib/application/renda-service";
-import { faturaDoMes } from "@/lib/domain/financeiro/cartao";
+import { faturaDoMes, somarRecorrentes } from "@/lib/domain/financeiro/cartao";
 import { itensPadrao } from "@/lib/domain/financeiro/padroes";
 import type { TipoItem } from "@/lib/domain/financeiro/tipos";
 
@@ -97,7 +98,7 @@ export const obterOuCriarMes = async (competencia: string): Promise<MesComItens>
   });
 
   const criado = await prisma.mesFinanceiro.create({
-    data: anterior ? clonarMes(anterior, competencia, ["CONTA"]) : mesVazio(competencia),
+    data: anterior ? clonarMes(anterior, competencia, TIPOS_COPIA_PADRAO) : mesVazio(competencia),
     include: incluirItens,
   });
   return (await sincronizarFolhaDoMes(criado.id, { incluirNovasRendas: true })) ?? criado;
@@ -114,6 +115,27 @@ const sincronizarFolhaDoMes = async (
 
 const garantirMesAberto = (mes: { fechado: boolean }) => {
   if (mes.fechado) throw new Error(ERRO_MES_FECHADO);
+};
+
+const CAMPOS_DEPOSITO_MES = {
+  poupanca: "poupancaDepositado",
+  fundo: "fundoDepositado",
+  alttab: "alttabDepositado",
+  meta: "metaDepositado",
+} as const;
+
+export const marcarDeposito = async (
+  competencia: string,
+  campo: keyof typeof CAMPOS_DEPOSITO_MES,
+  depositado: boolean,
+) => {
+  const mes = await buscarMes(competencia);
+  if (!mes) throw new Error("Mês não encontrado.");
+  garantirMesAberto(mes);
+  return prisma.mesFinanceiro.update({
+    where: { id: mes.id },
+    data: { [CAMPOS_DEPOSITO_MES[campo]]: Boolean(depositado) },
+  });
 };
 
 export const salvarMes = async (payload: MesDTO): Promise<MesComItens> => {
@@ -188,11 +210,13 @@ export const listarResumos = async () => {
     include: incluirItens,
     orderBy: { competencia: "asc" },
   });
-  const [compras, preferencia, emprestimos] = await Promise.all([
+  const [compras, recorrentes, preferencia, emprestimos] = await Promise.all([
     listarComprasCartao(),
+    listarRecorrentesCartao(),
     obterPreferenciaCasa(),
     listarEmprestimosMeta(),
   ]);
+  const cartaoFixo = somarRecorrentes(recorrentes);
 
   return meses.map((mes) => {
     const resultado = calcularMesPersistido(
@@ -200,6 +224,7 @@ export const listarResumos = async () => {
       faturaDoMes(compras, mes.competencia),
       preferencia.gastoPessoalMes,
       somarDevolucao(emprestimos, mes.competencia),
+      cartaoFixo,
     );
     const dto = mesParaDto(mes);
     const progresso = progressoPagamento(dto.itens);

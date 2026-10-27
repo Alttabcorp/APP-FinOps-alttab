@@ -5,10 +5,12 @@ import { mesParaDto, type MesDTO } from "@/lib/application/mes-mapper";
 import {
   criarProximoMes,
   definirMesFechado,
+  marcarDeposito,
   obterOuCriarMes,
   salvarMes,
   trazerValoresMesAnterior,
 } from "@/lib/application/mes-service";
+import { isCampoDeposito, type CampoDeposito } from "@/lib/domain/financeiro/transferencia";
 
 export type AcaoMesResultado =
   | { ok: true; mes: MesDTO; criado?: boolean }
@@ -25,6 +27,8 @@ const revalidarMes = (competencia: string) => {
   revalidatePath("/gastos");
   revalidatePath("/investimentos");
   revalidatePath("/historico");
+  revalidatePath("/acompanhar");
+  revalidatePath("/dashboard");
   revalidatePath("/");
 };
 
@@ -74,6 +78,26 @@ export async function definirMesFechadoAction(
     return { ok: true, mes: mesParaDto(mes) };
   } catch (erro) {
     return falha(erro, fechado ? "Não foi possível fechar o mês." : "Não foi possível reabrir o mês.");
+  }
+}
+
+export type AcaoDepositoResultado = { ok: true } | { ok: false; erro: string };
+
+export async function marcarDepositoAction(
+  competencia: string,
+  campo: CampoDeposito,
+  depositado: boolean,
+): Promise<AcaoDepositoResultado> {
+  if (!isCampoDeposito(campo)) return { ok: false, erro: "Depósito inválido." };
+  try {
+    await marcarDeposito(competencia, campo, depositado);
+    revalidarMes(competencia);
+    return { ok: true };
+  } catch (erro) {
+    return {
+      ok: false,
+      erro: erro instanceof Error ? erro.message : "Não foi possível marcar o depósito.",
+    };
   }
 }
 

@@ -18,17 +18,18 @@ export type LinhaHistorico = {
 };
 
 const SERIES = [
-  { chave: "ganhou" as const, rotulo: "Ganhou", cor: "#0B6E5A" },
-  { chave: "gasto" as const, rotulo: "Gastou", cor: "#C24E1F" },
-  { chave: "sobrou" as const, rotulo: "Sobrou", cor: "#3E5C52" },
+  { chave: "ganhou" as const, rotulo: "Ganhou", cor: "#1b5f4a" },
+  { chave: "gasto" as const, rotulo: "Gastou", cor: "#9c3a28" },
+  { chave: "sobrou" as const, rotulo: "Sobrou", cor: "#141c19" },
 ];
 
 type Props = {
   linhas: LinhaHistorico[];
   onSelecionar?: (linha: LinhaHistorico) => void;
+  compacto?: boolean;
 };
 
-export function GraficoHistorico({ linhas, onSelecionar }: Props) {
+export function GraficoHistorico({ linhas, onSelecionar, compacto = false }: Props) {
   const [ativo, setAtivo] = useState<number | null>(null);
   if (!linhas.length) return null;
 
@@ -37,8 +38,8 @@ export function GraficoHistorico({ linhas, onSelecionar }: Props) {
     1,
   );
   const largura = 720;
-  const altura = 280;
-  const margem = { top: 16, right: 8, bottom: 44, left: 8 };
+  const altura = compacto ? 168 : 280;
+  const margem = { top: 12, right: 8, bottom: compacto ? 36 : 44, left: 8 };
   const area = largura - margem.left - margem.right;
   const grupo = area / linhas.length;
   const barra = Math.max(6, (grupo - 12) / SERIES.length);

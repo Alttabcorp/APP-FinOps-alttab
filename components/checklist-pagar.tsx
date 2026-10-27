@@ -84,7 +84,6 @@ export function ChecklistPagar({
                     type="checkbox"
                     name={id}
                     checked={item.pago}
-                    aria-checked={item.pago}
                     disabled={somenteLeitura}
                     onChange={(evento) => onToggle(indice, evento.target.checked)}
                   />

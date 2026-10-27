@@ -23,6 +23,7 @@ const falha = (erro: unknown, fallback: string): AcaoEmprestimoMetaResultado => 
 
 const revalidar = () => {
   revalidatePath("/contas");
+  revalidatePath("/investimentos");
   revalidatePath("/", "layout");
 };
 
@@ -34,7 +35,7 @@ export async function registrarSaqueMetaAction(
     revalidar();
     return { ok: true, emprestimo };
   } catch (erro) {
-    return falha(erro, "Não foi possível sacar da meta.");
+    return falha(erro, "Não foi possível registrar a retirada.");
   }
 }
 
@@ -46,7 +47,7 @@ export async function devolverEmprestimoMetaAction(
     revalidar();
     return { ok: true, emprestimo };
   } catch (erro) {
-    return falha(erro, "Não foi possível devolver à meta.");
+    return falha(erro, "Não foi possível repor a retirada.");
   }
 }
 
@@ -56,6 +57,6 @@ export async function excluirEmprestimoMetaAction(id: string): Promise<AcaoEmpre
     revalidar();
     return { ok: true };
   } catch (erro) {
-    return falha(erro, "Não foi possível remover a compra à vista.");
+    return falha(erro, "Não foi possível remover a retirada.");
   }
 }

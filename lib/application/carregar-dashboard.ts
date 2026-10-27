@@ -1,12 +1,17 @@
+import { listarContasAnuais } from "@/lib/application/anual-service";
 import { carregarFolha } from "@/lib/application/carregar-folha";
 import { progressoPagamento } from "@/lib/application/checklist";
 import { listarResumos } from "@/lib/application/mes-service";
 import { somarSaldos } from "@/lib/domain/financeiro/conta";
-import { competenciaAtual } from "@/lib/domain/financeiro/competencia";
+import { competenciaAtual, isCompetencia } from "@/lib/domain/financeiro/competencia";
 
-export async function carregarDashboard() {
-  const competencia = competenciaAtual();
-  const [folha, resumos] = await Promise.all([carregarFolha(competencia), listarResumos()]);
+export async function carregarDashboard(competenciaPedido?: string) {
+  const competencia = competenciaPedido && isCompetencia(competenciaPedido) ? competenciaPedido : competenciaAtual();
+  const [folha, resumos, anuais] = await Promise.all([
+    carregarFolha(competencia),
+    listarResumos(),
+    listarContasAnuais(),
+  ]);
 
   if (!folha) return null;
 
@@ -24,8 +29,14 @@ export async function carregarDashboard() {
     resumoAnterior: folha.resumoAnterior,
     contas: folha.contas,
     faturaCartao: folha.faturaCartao,
+    parcelasCartao: folha.parcelasCartao,
+    recorrentesCartao: folha.recorrentesCartao,
+    cartaoFixo: folha.cartaoFixo,
     metaRendimentoPassivo: folha.metaRendimentoPassivo,
     gastoPessoalMes: folha.gastoPessoalMes,
+    destinoCartaoNome: folha.destinoCartaoNome,
+    destinoCartaoChave: folha.destinoCartaoChave,
+    anuais,
     resumos,
     pagamento,
     emprestimosMeta: folha.emprestimosMeta,

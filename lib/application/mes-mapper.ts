@@ -91,9 +91,11 @@ export const calcularMesPersistido = (
   cartaoFatura = 0,
   gastoPessoalAlvo: number | null = null,
   reposicaoMeta = 0,
+  cartaoFixo = 0,
 ): ResultadoMes => {
   const entrada = mesParaEntrada(mes);
-  entrada.despesasVariaveis.cartao += cartaoFatura;
+  entrada.cartaoParcelas = cartaoFatura;
+  entrada.cartaoFixo = cartaoFixo;
   entrada.gastoPessoalAlvo = gastoPessoalAlvo;
   entrada.reposicaoMeta = reposicaoMeta;
   return calcularMes(entrada);

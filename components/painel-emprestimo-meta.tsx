@@ -7,6 +7,7 @@ import {
   excluirEmprestimoMetaAction,
   registrarSaqueMetaAction,
 } from "@/app/actions/emprestimo-meta";
+import { Bloco } from "@/components/bloco";
 import { BarraMeta } from "@/components/barra-meta";
 import { CampoLinha, CampoSelect, CampoTexto } from "@/components/campo";
 import { CampoMes } from "@/components/campo-mes";
@@ -21,6 +22,9 @@ import {
   competenciaAtual,
   formatarCompetenciaCurta,
 } from "@/lib/domain/financeiro/competencia";
+import type { FinalidadeConta } from "@/lib/domain/financeiro/conta";
+import { ROTULOS_FINALIDADE } from "@/lib/domain/financeiro/conta";
+import { avaliarReposicao, sugerirParcelasReposicao } from "@/lib/domain/financeiro/emprestimo-meta";
 import { formatarMoeda } from "@/lib/formatacao";
 
 type Rascunho = {
@@ -34,24 +38,35 @@ type Rascunho = {
 const rascunhoVazio = (contaId: string): Rascunho => ({
   nome: "",
   valorTotal: 0,
-  parcelas: 6,
+  parcelas: 1,
   competenciaInicio: competenciaAtual(),
   contaId,
 });
 
 type Props = {
   emprestimos: EmprestimoMetaComSituacao[];
-  contasMeta: ContaComProgresso[];
+  contas: ContaComProgresso[];
+  sobraMes: number;
   abrirNovo?: boolean;
+  titulo?: string;
+  nota?: string;
 };
 
-export function PainelEmprestimoMeta({ emprestimos, contasMeta, abrirNovo = false }: Props) {
+export function PainelEmprestimoMeta({
+  emprestimos,
+  contas,
+  sobraMes,
+  abrirNovo = false,
+  titulo,
+  nota,
+}: Props) {
   const router = useRouter();
-  const contaPadrao = contasMeta[0]?.id ?? "";
+  const contaPadrao = contas[0]?.id ?? "";
   const [editor, setEditor] = useState<Rascunho | null>(null);
   const [devolverId, setDevolverId] = useState<string | null>(null);
   const [valorDevolucao, setValorDevolucao] = useState(0);
   const [confirmarExclusao, setConfirmarExclusao] = useState<string | null>(null);
+  const [confirmarAperto, setConfirmarAperto] = useState(false);
   const [status, setStatus] = useState("");
   const [erro, setErro] = useState("");
   const [pendente, startTransition] = useTransition();
@@ -59,13 +74,21 @@ export function PainelEmprestimoMeta({ emprestimos, contasMeta, abrirNovo = fals
     () => emprestimos.reduce((acc, emprestimo) => acc + emprestimo.aberto, 0),
     [emprestimos],
   );
-  const contaEscolhida = contasMeta.find((conta) => conta.id === editor?.contaId) ?? contasMeta[0];
-  const saldoMeta = contaEscolhida?.saldo ?? 0;
+  const contaEscolhida = contas.find((conta) => conta.id === editor?.contaId) ?? contas[0];
+  const saldoConta = contaEscolhida?.saldo ?? 0;
   const emprestimoDevolucao = emprestimos.find((emprestimo) => emprestimo.id === devolverId);
+  const misto = new Set(contas.map((conta) => conta.finalidade)).size > 1;
+  const copiaLista = textosRetirada(misto ? "MISTO" : (contas[0]?.finalidade ?? "META"));
+  const copia = editor ? textosRetirada(contaEscolhida?.finalidade ?? "META") : copiaLista;
+  const plano = editor
+    ? avaliarReposicao(editor.valorTotal, editor.parcelas, sobraMes)
+    : sugerirParcelasReposicao(0, sobraMes);
+  const precisaConfirmar = Boolean(editor && editor.valorTotal > 0.005 && !plano.cabeNoMes);
 
   useEffect(() => {
     if (!abrirNovo) return;
     setErro("");
+    setConfirmarAperto(false);
     setEditor(rascunhoVazio(contaPadrao));
   }, [abrirNovo, contaPadrao]);
 
@@ -73,15 +96,29 @@ export function PainelEmprestimoMeta({ emprestimos, contasMeta, abrirNovo = fals
     setEditor(null);
     setDevolverId(null);
     setConfirmarExclusao(null);
+    setConfirmarAperto(false);
     setErro("");
   };
 
   const registrar = () => {
     if (!editor) return;
+    if (editor.valorTotal > saldoConta + 0.005) {
+      setErro("Essa conta não tem saldo para essa retirada.");
+      return;
+    }
+    if (precisaConfirmar && !confirmarAperto) {
+      setConfirmarAperto(true);
+      setErro("");
+      return;
+    }
     startTransition(async () => {
-      const resposta = await registrarSaqueMetaAction(editor);
+      const resposta = await registrarSaqueMetaAction({
+        ...editor,
+        sobraMes,
+        confirmado: confirmarAperto,
+      });
       if (resposta.ok) {
-        setStatus("Saque da meta registrado. Você ficou devendo para si.");
+        setStatus(copia.statusSaque);
         fechar();
         router.refresh();
       } else setErro(resposta.erro);
@@ -93,7 +130,7 @@ export function PainelEmprestimoMeta({ emprestimos, contasMeta, abrirNovo = fals
     startTransition(async () => {
       const resposta = await devolverEmprestimoMetaAction({ id: devolverId, valor: valorDevolucao });
       if (resposta.ok) {
-        setStatus(resposta.emprestimo?.quitado ? "Voltou tudo para a meta." : "Devolução registrada.");
+        setStatus(resposta.emprestimo?.quitado ? copia.statusQuitado : "Reposição registrada.");
         fechar();
         router.refresh();
       } else setErro(resposta.erro);
@@ -104,7 +141,7 @@ export function PainelEmprestimoMeta({ emprestimos, contasMeta, abrirNovo = fals
     startTransition(async () => {
       const resposta = await excluirEmprestimoMetaAction(id);
       if (resposta.ok) {
-        setStatus("Compra à vista removida.");
+        setStatus("Retirada removida.");
         fechar();
         router.refresh();
       } else setErro(resposta.erro);
@@ -112,44 +149,43 @@ export function PainelEmprestimoMeta({ emprestimos, contasMeta, abrirNovo = fals
   };
 
   return (
-    <div>
-      <p className="sr-only" aria-live="polite">
-        {status}
-      </p>
-
-      <div className="flex flex-wrap items-end justify-between gap-4 border-t border-line pt-4">
-        <div>
-          <p className="text-sm text-mute">Você deve à meta</p>
-          <p className={`amount mt-1 text-[1.85rem] ${aberto > 0.005 ? "text-outflow" : "text-inflow"}`}>
-            {formatarMoeda(aberto)}
-          </p>
-        </div>
+    <Bloco
+      titulo={titulo}
+      nota={nota}
+      figura={
+        <>
+          <p className="bloco-figura-rotulo">{copia.deve}</p>
+          <p className={`amount ${aberto > 0.005 ? "text-outflow" : "text-inflow"}`}>{formatarMoeda(aberto)}</p>
+        </>
+      }
+      acao={
         <div className="text-right">
           <button
             className="btn-primary"
             type="button"
-            disabled={contasMeta.length === 0 || saldoDisponivel(contasMeta) < 0.005}
+            disabled={contas.length === 0 || saldoDisponivel(contas) < 0.005}
             onClick={() => {
               setErro("");
+              setConfirmarAperto(false);
               setEditor(rascunhoVazio(contaPadrao));
             }}
           >
-            Comprar com a meta
+            {copia.botaoNovo}
           </button>
-          {saldoDisponivel(contasMeta) < 0.005 ? (
-            <p className="mt-1 text-xs text-mute">Junte na meta para sacar à vista.</p>
-          ) : null}
+          {saldoDisponivel(contas) < 0.005 ? <p className="mt-1 text-xs text-mute">{copia.semSaldo}</p> : null}
         </div>
-      </div>
+      }
+    >
+      <p className="sr-only" aria-live="polite">
+        {status}
+      </p>
 
-      {contasMeta.length === 0 ? (
-        <p className="vazio mt-8">Cadastre a conta da meta para sacar à vista.</p>
+      {contas.length === 0 ? (
+        <p className="vazio">{copia.semConta}</p>
       ) : emprestimos.length === 0 ? (
-        <p className="vazio mt-8">
-          Nada devido. Quando sacar da meta para pagar à vista, a dívida consigo aparece aqui.
-        </p>
+        <p className="vazio">{copia.vazio}</p>
       ) : (
-        <ul className="mt-8 grid gap-5">
+        <ul className="grid gap-3">
           {emprestimos.map((emprestimo) => (
             <li key={emprestimo.id} className="ficha">
               <header className="flex items-start justify-between gap-3">
@@ -172,22 +208,22 @@ export function PainelEmprestimoMeta({ emprestimos, contasMeta, abrirNovo = fals
                       );
                     }}
                   >
-                    Devolver
+                    Repor
                   </button>
                 )}
               </header>
               {emprestimo.quitado ? (
-                <p className="mt-3 text-sm text-inflow">Voltou para a meta.</p>
+                <p className="mt-3 text-sm text-inflow">{copia.voltou}</p>
               ) : (
                 <>
                   <p className="money mt-3 text-xl font-medium">{formatarMoeda(emprestimo.aberto)}</p>
                   <p className="mt-1 text-sm text-mute">
                     {emprestimo.parcelaSugerida > 0.005
-                      ? `Este mês devolve ${formatarMoeda(emprestimo.parcelaSugerida)} · restam ${emprestimo.parcelasRestantes}`
+                      ? `Este mês repõe ${formatarMoeda(emprestimo.parcelaSugerida)} · restam ${emprestimo.parcelasRestantes}`
                       : `Adiantado neste mês · restam ${emprestimo.parcelasRestantes} ${emprestimo.parcelasRestantes === 1 ? "parcela" : "parcelas"}`}
                   </p>
                   <div className="mt-3">
-                    <BarraMeta nome={`devolução ${emprestimo.nome}`} progresso={emprestimo.progresso} />
+                    <BarraMeta nome={`reposição ${emprestimo.nome}`} progresso={emprestimo.progresso} />
                   </div>
                 </>
               )}
@@ -216,7 +252,7 @@ export function PainelEmprestimoMeta({ emprestimos, contasMeta, abrirNovo = fals
                     type="button"
                     onClick={() => setConfirmarExclusao(emprestimo.id)}
                   >
-                    {emprestimo.pagoTotal < 0.005 ? "Desfazer saque" : "Esquecer o resto"}
+                    {emprestimo.pagoTotal < 0.005 ? "Desfazer retirada" : "Esquecer o resto"}
                   </button>
                 )}
               </p>
@@ -229,45 +265,59 @@ export function PainelEmprestimoMeta({ emprestimos, contasMeta, abrirNovo = fals
         {status}
       </p>
 
-      <Modal
-        aberto={Boolean(editor)}
-        titulo="Comprar com a meta"
-        descricao="O valor sai da meta agora. Você fica devendo para si e devolve aos poucos, sem usar o cartão."
-        onClose={fechar}
-      >
+      <Modal aberto={Boolean(editor)} titulo={copia.tituloNovo} descricao={copia.descricaoNovo} onClose={fechar}>
         {editor ? (
           <FormularioModal
             onSubmit={registrar}
             resumo={
               editor.valorTotal > 0 && editor.parcelas > 0
-                ? `Sai ${formatarMoeda(editor.valorTotal)} agora · devolve ${editor.parcelas}x de ${formatarMoeda(valorDaParcela(editor.valorTotal, editor.parcelas, 0))}`
-                : "O valor sai da meta. Você devolve aos poucos."
+                ? `Sai ${formatarMoeda(editor.valorTotal)} agora · repõe ${editor.parcelas}x de ${formatarMoeda(valorDaParcela(editor.valorTotal, editor.parcelas, 0))}`
+                : copia.resumoVazio
             }
             erro={erro}
             acoes={
-              <button className="btn-primary ml-auto" type="submit" disabled={pendente}>
-                {pendente ? "Registrando…" : "Sacar e ficar devendo"}
-              </button>
+              <>
+                {confirmarAperto ? (
+                  <button className="btn" type="button" onClick={() => setConfirmarAperto(false)}>
+                    Voltar
+                  </button>
+                ) : (
+                  <span />
+                )}
+                <button className="btn-primary ml-auto" type="submit" disabled={pendente}>
+                  {pendente
+                    ? "Registrando…"
+                    : confirmarAperto
+                      ? "Confirmar retirada mesmo assim"
+                      : copia.botaoSalvar}
+                </button>
+              </>
             }
           >
             <CampoTexto
               id="saque-nome"
-              label="O que vai comprar"
+              label={copia.labelNome}
               value={editor.nome}
-              placeholder="Ex.: Sofá, mesa…"
+              placeholder={copia.placeholderNome}
               autoFocus
-              onChange={(nome) => setEditor({ ...editor, nome })}
+              onChange={(nome) => {
+                setConfirmarAperto(false);
+                setEditor({ ...editor, nome });
+              }}
             />
-            {contasMeta.length > 1 ? (
+            {contas.length > 1 ? (
               <CampoSelect
                 id="saque-conta"
-                label="De qual meta"
+                label="De qual conta"
                 value={editor.contaId}
-                onChange={(contaId) => setEditor({ ...editor, contaId })}
+                onChange={(contaId) => {
+                  setConfirmarAperto(false);
+                  setEditor({ ...editor, contaId });
+                }}
               >
-                {contasMeta.map((conta) => (
+                {contas.map((conta) => (
                   <option key={conta.id} value={conta.id}>
-                    {conta.nome} · {formatarMoeda(conta.saldo)}
+                    {conta.nome} · {ROTULOS_FINALIDADE[conta.finalidade]} · {formatarMoeda(conta.saldo)}
                   </option>
                 ))}
               </CampoSelect>
@@ -275,30 +325,56 @@ export function PainelEmprestimoMeta({ emprestimos, contasMeta, abrirNovo = fals
             <CampoLinha>
               <CampoMoeda
                 id="saque-total"
-                label="Valor à vista"
+                label="Valor da retirada"
                 hint={
-                  saldoMeta > 0.005
-                    ? `Saldo na meta: ${formatarMoeda(saldoMeta)}.`
-                    : "A meta está zerada. Junte um pouco antes de sacar."
+                  saldoConta > 0.005
+                    ? `Saldo disponível: ${formatarMoeda(saldoConta)}.`
+                    : "Essa conta está zerada. Junte um pouco antes de sacar."
                 }
                 value={editor.valorTotal}
-                onChange={(valorTotal) => setEditor({ ...editor, valorTotal })}
+                onChange={(valorTotal) => {
+                  const sugestao = sugerirParcelasReposicao(valorTotal, sobraMes);
+                  setConfirmarAperto(false);
+                  setEditor({ ...editor, valorTotal, parcelas: sugestao.parcelas });
+                }}
               />
               <CampoPassos
                 id="saque-parcelas"
-                label="Devolve em"
+                label="Repõe em"
                 value={editor.parcelas}
                 min={1}
                 max={48}
-                onChange={(parcelas) => setEditor({ ...editor, parcelas })}
-                detalhe={editor.parcelas === 1 ? "1 mês" : `${editor.parcelas} meses`}
+                onChange={(parcelas) => {
+                  setConfirmarAperto(false);
+                  setEditor({ ...editor, parcelas });
+                }}
+                detalhe={
+                  editor.parcelas === 1 ? "1 mês" : `${editor.parcelas} meses`
+                }
               />
             </CampoLinha>
+            {editor.valorTotal > 0.005 ? (
+              precisaConfirmar ? (
+                <p className="rito-aperto" role="status">
+                  {confirmarAperto
+                    ? `Neste mês sobra ${formatarMoeda(sobraMes)}. Mesmo em ${plano.parcelas}x de ${formatarMoeda(plano.valorParcela)}, repor deixa o mês negativo. Confirmem a retirada se quiserem seguir.`
+                    : `Neste mês sobra ${formatarMoeda(sobraMes)}. Não dá para repor ${formatarMoeda(plano.valorParcela)} por mês sem ficar negativo.`}
+                </p>
+              ) : (
+                <p className="text-sm text-mute">
+                  Sobra neste mês: {formatarMoeda(sobraMes)}. Cabe em {plano.parcelas}x de{" "}
+                  {formatarMoeda(plano.valorParcela)}, sem deixar negativo.
+                </p>
+              )
+            ) : null}
             <CampoMes
               id="saque-inicio"
-              label="Primeira devolução"
+              label="Primeira reposição"
               value={editor.competenciaInicio}
-              onChange={(competenciaInicio) => setEditor({ ...editor, competenciaInicio })}
+              onChange={(competenciaInicio) => {
+                setConfirmarAperto(false);
+                setEditor({ ...editor, competenciaInicio });
+              }}
             />
           </FormularioModal>
         ) : null}
@@ -306,7 +382,7 @@ export function PainelEmprestimoMeta({ emprestimos, contasMeta, abrirNovo = fals
 
       <Modal
         aberto={Boolean(emprestimoDevolucao)}
-        titulo="Devolver à meta"
+        titulo={copia.tituloDevolver}
         descricao={
           emprestimoDevolucao
             ? `Ainda deve ${formatarMoeda(emprestimoDevolucao.aberto)} do ${emprestimoDevolucao.nome.toLowerCase()}.`
@@ -333,7 +409,7 @@ export function PainelEmprestimoMeta({ emprestimos, contasMeta, abrirNovo = fals
                   <span />
                 )}
                 <button className="btn-primary" type="submit" disabled={pendente}>
-                  {pendente ? "Devolvendo…" : "Devolver à meta"}
+                  {pendente ? "Repor…" : copia.botaoDevolver}
                 </button>
               </>
             }
@@ -344,7 +420,7 @@ export function PainelEmprestimoMeta({ emprestimos, contasMeta, abrirNovo = fals
               hint={
                 emprestimoDevolucao.parcelaSugerida > 0.005
                   ? `Parcela deste mês: ${formatarMoeda(emprestimoDevolucao.parcelaSugerida)}.`
-                  : "Pode devolver o que couber neste mês."
+                  : "Pode repor o que couber neste mês."
               }
               value={valorDevolucao}
               onChange={setValorDevolucao}
@@ -353,9 +429,94 @@ export function PainelEmprestimoMeta({ emprestimos, contasMeta, abrirNovo = fals
           </FormularioModal>
         ) : null}
       </Modal>
-    </div>
+    </Bloco>
   );
 }
 
 const saldoDisponivel = (contas: ContaComProgresso[]) =>
   contas.reduce((acc, conta) => acc + conta.saldo, 0);
+
+const textosRetirada = (finalidade: FinalidadeConta | "MISTO") => {
+  if (finalidade === "MISTO") {
+    return {
+      deve: "Ainda falta repor",
+      botaoNovo: "Registrar retirada",
+      semSaldo: "Junte na reserva ou na meta para retirar.",
+      semConta: "Cadastre reserva ou meta para retirar.",
+      vazio: "Nada devido. Quando retirar da reserva ou da meta, a reposição aparece aqui.",
+      tituloNovo: "Registrar retirada",
+      descricaoNovo:
+        "O valor sai agora. O sistema sugere em quantas vezes repor para o mês não ficar negativo.",
+      resumoVazio: "O valor sai da conta. Você repõe aos poucos.",
+      labelNome: "Motivo da retirada",
+      placeholderNome: "Ex.: Extra da casa…",
+      botaoSalvar: "Sacar e repor depois",
+      statusSaque: "Retirada registrada.",
+      voltou: "Voltou para a conta.",
+      tituloDevolver: "Repor a retirada",
+      botaoDevolver: "Repor",
+      statusQuitado: "Voltou tudo para a conta.",
+    };
+  }
+  if (finalidade === "POUPANCA") {
+    return {
+      deve: "Você deve à poupança",
+      botaoNovo: "Retirar da poupança",
+      semSaldo: "Junte na poupança para retirar.",
+      semConta: "Cadastre a poupança para retirar.",
+      vazio: "Nada devido. Quando retirar da poupança, a reposição aparece aqui.",
+      tituloNovo: "Retirar da poupança",
+      descricaoNovo:
+        "O valor sai agora. O sistema sugere em quantas vezes repor para o mês não ficar negativo.",
+      resumoVazio: "O valor sai da poupança. Você repõe aos poucos.",
+      labelNome: "Motivo da retirada",
+      placeholderNome: "Ex.: Consertar o carro…",
+      botaoSalvar: "Sacar e repor depois",
+      statusSaque: "Retirada da poupança registrada.",
+      voltou: "Voltou para a poupança.",
+      tituloDevolver: "Repor na poupança",
+      botaoDevolver: "Repor na poupança",
+      statusQuitado: "Voltou tudo para a poupança.",
+    };
+  }
+  if (finalidade === "RESERVA") {
+    return {
+      deve: "Você deve à reserva",
+      botaoNovo: "Retirar da reserva",
+      semSaldo: "Junte na reserva para retirar.",
+      semConta: "Cadastre a reserva para retirar.",
+      vazio: "Nada devido. Quando retirar da reserva, a reposição aparece aqui.",
+      tituloNovo: "Retirar da reserva",
+      descricaoNovo:
+        "O valor sai agora. O sistema sugere em quantas vezes repor para o mês não ficar negativo.",
+      resumoVazio: "O valor sai da reserva. Você repõe aos poucos.",
+      labelNome: "Motivo da retirada",
+      placeholderNome: "Ex.: Extra de saúde…",
+      botaoSalvar: "Sacar e repor depois",
+      statusSaque: "Retirada da reserva registrada.",
+      voltou: "Voltou para a reserva.",
+      tituloDevolver: "Repor na reserva",
+      botaoDevolver: "Repor na reserva",
+      statusQuitado: "Voltou tudo para a reserva.",
+    };
+  }
+  return {
+    deve: "Você deve à meta",
+    botaoNovo: "Comprar com a meta",
+    semSaldo: "Junte na meta para sacar à vista.",
+    semConta: "Cadastre a conta da meta para sacar à vista.",
+    vazio: "Nada devido. Quando sacar da meta para pagar à vista, a dívida consigo aparece aqui.",
+    tituloNovo: "Comprar com a meta",
+    descricaoNovo:
+      "O valor sai da meta agora. O sistema sugere em quantas vezes repor para o mês não ficar negativo.",
+    resumoVazio: "O valor sai da meta. Você devolve aos poucos.",
+    labelNome: "O que vai comprar",
+    placeholderNome: "Ex.: Sofá, mesa…",
+    botaoSalvar: "Sacar e ficar devendo",
+    statusSaque: "Saque da meta registrado. Você ficou devendo para si.",
+    voltou: "Voltou para a meta.",
+    tituloDevolver: "Repor na meta",
+    botaoDevolver: "Repor na meta",
+    statusQuitado: "Voltou tudo para a meta.",
+  };
+};

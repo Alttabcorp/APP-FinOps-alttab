@@ -38,6 +38,7 @@ import { formatarDeltaMes, formatarMoeda, formatarVariacao } from "@/lib/formata
 export type ResumoAnterior = {
   competencia: string;
   sobrou: number;
+  ganhou?: number;
 };
 
 type Props = {
@@ -49,6 +50,7 @@ type Props = {
   faturaCartao?: number;
   gastoPessoalMes?: number | null;
   reposicaoMeta?: number;
+  cartaoFixo?: number;
 };
 
 type EditorAberto =
@@ -82,6 +84,7 @@ export function FolhaMes({
   faturaCartao = 0,
   gastoPessoalMes = null,
   reposicaoMeta = 0,
+  cartaoFixo = 0,
 }: Props) {
   const router = useRouter();
   const [mes, setMes] = useState(mesInicial);
@@ -116,7 +119,7 @@ export function FolhaMes({
       anuais: porTipo(mes.itens, "ANUAL"),
       despesasVariaveis: {
         feira: mes.feiraReal,
-        cartao: mes.cartaoReal + faturaCartao,
+        cartao: mes.cartaoReal,
         gasolina: mes.gasolinaReal,
       },
       investimentos: {
@@ -127,8 +130,10 @@ export function FolhaMes({
       },
       gastoPessoalAlvo: gastoPessoalMes,
       reposicaoMeta,
+      cartaoParcelas: faturaCartao,
+      cartaoFixo,
     });
-  }, [mes, faturaCartao, gastoPessoalMes, reposicaoMeta]);
+  }, [mes, faturaCartao, gastoPessoalMes, reposicaoMeta, cartaoFixo]);
 
   const comPoupancaAutomatica = (origem: MesDTO): MesDTO => {
     if (origem.poupancaEditado) return origem;
@@ -149,6 +154,8 @@ export function FolhaMes({
         poupanca: origem.poupancaReal,
         poupancaEditado: false,
       },
+      cartaoParcelas: faturaCartao,
+      cartaoFixo,
     });
     return { ...origem, poupancaReal: calculado.investimentos.poupanca.sugestao };
   };

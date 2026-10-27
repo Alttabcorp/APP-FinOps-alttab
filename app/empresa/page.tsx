@@ -1,3 +1,5 @@
+import { CabecaPagina } from "@/components/cabeca-pagina";
+import { NavCadastros } from "@/components/nav-cadastros";
 import { PainelAnuais } from "@/components/painel-anuais";
 import { PainelContas } from "@/components/painel-contas";
 import { PainelGastoEmpresa } from "@/components/painel-gasto-empresa";
@@ -22,42 +24,36 @@ export default async function PaginaEmpresa({ searchParams }: Props) {
   const contasAnuais = anuais.filter((conta) => conta.lado === "EMPRESA");
 
   return (
-    <main id="conteudo" className="mx-auto max-w-[72rem] px-4 py-6 pb-16 lg:px-8 lg:py-8">
-      <header>
-        <h1 className="titulo">
-          Empresa
-        </h1>
-        <p className="mt-2 max-w-[42ch] text-sm text-mute">
-          Dinheiro para investir na empresa. Anote cada retirada e em que foi gasto.
-        </p>
-      </header>
-      <div className="mt-8">
-        <PainelContas
-          contas={contas}
-          finalidades={["EMPRESA"]}
-          finalidadePadrao="EMPRESA"
-          abrirNovo={novo === "conta"}
-          vazio="Nenhuma conta da empresa ainda. Cadastre o saldo do investimento da empresa."
-        />
-      </div>
-      <section className="mt-12">
-        <h2 className="titulo-secao">Gastos da empresa</h2>
-        <p className="mt-1 max-w-[42ch] text-sm text-mute">
-          O valor sai da conta da empresa. Fica registrado o que foi comprado.
-        </p>
-        <div className="mt-4">
-          <PainelGastoEmpresa contasEmpresa={contas} gastos={gastos} abrirNovo={novo === "gasto"} />
-        </div>
-      </section>
-      <section className="mt-12">
-        <h2 className="titulo-secao">Contas anuais da empresa</h2>
-        <p className="mt-1 max-w-[42ch] text-sm text-mute">
-          Informe a data de cobrança. Dá para dividir o valor até esse dia.
-        </p>
-        <div className="mt-4">
-          <PainelAnuais contas={contasAnuais} lado="EMPRESA" abrirNovo={novo === "anual"} />
-        </div>
-      </section>
+    <main id="conteudo" className="pagina">
+      <NavCadastros />
+      <CabecaPagina
+        titulo="Empresa"
+        nota="Saldo da Alttab. O depósito do mês se lança no Início. Aqui: estoque, retirada e anuais."
+      />
+      <PainelContas
+        contas={contas}
+        finalidades={["EMPRESA"]}
+        finalidadePadrao="EMPRESA"
+        abrirNovo={novo === "conta"}
+        titulo="Conta da empresa"
+        nota="O estoque. Gasto da empresa sai daqui."
+        rotuloTotal="Na empresa"
+        vazio="Nenhuma conta da empresa ainda. Cadastre o saldo do investimento da empresa."
+      />
+      <PainelGastoEmpresa
+        contasEmpresa={contas}
+        gastos={gastos}
+        abrirNovo={novo === "gasto"}
+        titulo="Gastos da empresa"
+        nota="O valor sai da conta da empresa. Fica registrado o que foi comprado."
+      />
+      <PainelAnuais
+        contas={contasAnuais}
+        lado="EMPRESA"
+        abrirNovo={novo === "anual"}
+        titulo="Contas anuais da empresa"
+        nota="Domínio, máquina virtual. O sistema sugere guardar um pedaço todo mês até o pagamento."
+      />
     </main>
   );
 }

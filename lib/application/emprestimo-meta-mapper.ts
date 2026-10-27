@@ -1,11 +1,11 @@
 import type { ContaBancaria, EmprestimoMeta } from "@prisma/client";
 import { competenciaAtual } from "@/lib/domain/financeiro/competencia";
+import type { FinalidadeConta, ProgressoMeta } from "@/lib/domain/financeiro/conta";
 import {
   progressoDevolucao,
   situacaoEmprestimoMeta,
   type SituacaoEmprestimoMeta,
 } from "@/lib/domain/financeiro/emprestimo-meta";
-import type { ProgressoMeta } from "@/lib/domain/financeiro/conta";
 
 export type EmprestimoMetaDTO = {
   id: string;
@@ -17,6 +17,7 @@ export type EmprestimoMetaDTO = {
   pagoTotal: number;
   contaId: string;
   contaNome: string;
+  contaFinalidade: FinalidadeConta;
   ordem: number;
 };
 
@@ -31,6 +32,8 @@ export type EmprestimoMetaPayload = {
   parcelas: number;
   competenciaInicio: string;
   contaId?: string;
+  sobraMes?: number;
+  confirmado?: boolean;
 };
 
 export type DevolucaoMetaPayload = {
@@ -38,7 +41,7 @@ export type DevolucaoMetaPayload = {
   valor: number;
 };
 
-type EmprestimoComConta = EmprestimoMeta & { conta: Pick<ContaBancaria, "nome"> };
+type EmprestimoComConta = EmprestimoMeta & { conta: Pick<ContaBancaria, "nome" | "finalidade"> };
 
 export const emprestimoParaDto = (emprestimo: EmprestimoComConta): EmprestimoMetaDTO => ({
   id: emprestimo.id,
@@ -50,6 +53,7 @@ export const emprestimoParaDto = (emprestimo: EmprestimoComConta): EmprestimoMet
   pagoTotal: Number(emprestimo.pagoTotal),
   contaId: emprestimo.contaId,
   contaNome: emprestimo.conta.nome,
+  contaFinalidade: emprestimo.conta.finalidade,
   ordem: emprestimo.ordem,
 });
 

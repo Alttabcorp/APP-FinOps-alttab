@@ -63,14 +63,18 @@ function detalhe(etapa: EtapaPrioridade, contasPagas?: number, contasTotal?: num
   if (etapa.id === "contas" && contasTotal != null && contasTotal > 0) {
     return `${contasPagas ?? 0} de ${contasTotal} ${contasTotal === 1 ? "paga" : "pagas"}`;
   }
+  if (etapa.id === "cartao" && etapa.status === "falta") {
+    return "A fatura é maior do que sobrou depois das contas.";
+  }
+  if (etapa.id === "cartao") return "O teto é o que sobrou depois das contas.";
   if (etapa.id === "feira" && etapa.status === "ok") return "Cobre com o vale-alimentação, se houver.";
   if (etapa.id === "pessoal" && etapa.status === "vazio") return "Não sobrou para gasto pessoal.";
   if (etapa.id === "pessoal") return "Fora as contas da casa.";
-  if (etapa.id === "reposicao" && etapa.status === "vazio") return "Nada a devolver à meta neste mês.";
-  if (etapa.id === "reposicao" && etapa.status === "falta") return `Faltam ${formatarMoeda(etapa.falta)} para repor o saque.`;
-  if (etapa.id === "reposicao") return "Parcela do que você tirou da meta para pagar à vista.";
+  if (etapa.id === "reposicao" && etapa.status === "vazio") return "Nada a repor da reserva ou da poupança neste mês.";
+  if (etapa.id === "reposicao" && etapa.status === "falta") return `Faltam ${formatarMoeda(etapa.falta)} para repor a retirada.`;
+  if (etapa.id === "reposicao") return "Parcela do que saiu da reserva, da poupança ou da meta.";
   if (etapa.id === "meta" && etapa.status === "vazio") return "Não sobrou para a meta nem para mais investimento.";
-  if (etapa.id === "meta") return "O que restou depois de devolver à meta.";
+  if (etapa.id === "meta") return "O que restou depois de repor a retirada.";
   if (etapa.status === "falta") return `Faltam ${formatarMoeda(etapa.falta)}`;
   if (etapa.status === "vazio") return "Nada neste mês";
   return "Coberto";

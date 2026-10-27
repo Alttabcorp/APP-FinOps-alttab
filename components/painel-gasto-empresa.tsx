@@ -7,6 +7,7 @@ import {
   excluirGastoEmpresaAction,
   registrarGastoEmpresaAction,
 } from "@/app/actions/gasto-empresa";
+import { Bloco } from "@/components/bloco";
 import { CampoArea, CampoSelect, CampoTexto } from "@/components/campo";
 import { CampoMes } from "@/components/campo-mes";
 import { CampoMoeda } from "@/components/campo-moeda";
@@ -52,9 +53,17 @@ type Props = {
   gastos: GastoEmpresaDTO[];
   contasEmpresa: ContaComProgresso[];
   abrirNovo?: boolean;
+  titulo?: string;
+  nota?: string;
 };
 
-export function PainelGastoEmpresa({ gastos, contasEmpresa, abrirNovo = false }: Props) {
+export function PainelGastoEmpresa({
+  gastos,
+  contasEmpresa,
+  abrirNovo = false,
+  titulo,
+  nota,
+}: Props) {
   const router = useRouter();
   const contaPadrao = contasEmpresa[0]?.id ?? "";
   const [editor, setEditor] = useState<Rascunho | null>(null);
@@ -121,18 +130,16 @@ export function PainelGastoEmpresa({ gastos, contasEmpresa, abrirNovo = false }:
   };
 
   return (
-    <div>
-      <p className="sr-only" aria-live="polite">
-        {status}
-      </p>
-
-      <div className="flex flex-wrap items-end justify-between gap-4 border-t border-line pt-4">
-        <div>
-          <p className="text-sm text-mute">Saiu em {formatarNomeMes(mesAtual)}</p>
-          <p className={`amount mt-1 text-[1.85rem] ${saiuNoMes > 0.005 ? "text-outflow" : ""}`}>
-            {formatarMoeda(saiuNoMes)}
-          </p>
-        </div>
+    <Bloco
+      titulo={titulo}
+      nota={nota}
+      figura={
+        <>
+          <p className="bloco-figura-rotulo">Saiu em {formatarNomeMes(mesAtual)}</p>
+          <p className={`amount ${saiuNoMes > 0.005 ? "text-outflow" : ""}`}>{formatarMoeda(saiuNoMes)}</p>
+        </>
+      }
+      acao={
         <div className="text-right">
           <button
             className="btn-primary"
@@ -150,14 +157,18 @@ export function PainelGastoEmpresa({ gastos, contasEmpresa, abrirNovo = false }:
             <p className="mt-1 text-xs text-mute">Junte na empresa para anotar uma retirada.</p>
           ) : null}
         </div>
-      </div>
+      }
+    >
+      <p className="sr-only" aria-live="polite">
+        {status}
+      </p>
 
       {contasEmpresa.length === 0 ? (
-        <p className="vazio mt-8">Cadastre a conta da empresa para anotar o que sai.</p>
+        <p className="vazio">Cadastre a conta da empresa para anotar o que sai.</p>
       ) : gastos.length === 0 ? (
-        <p className="vazio mt-8">Nenhum gasto ainda. Anote a retirada e em que o dinheiro foi gasto.</p>
+        <p className="vazio">Nenhum gasto ainda. Anote a retirada e em que o dinheiro foi gasto.</p>
       ) : (
-        <ul className="mt-8 grid gap-5">
+        <ul className="grid gap-3">
           {gastos.map((gasto) => (
             <li key={gasto.id} className="ficha">
               <header className="flex items-start justify-between gap-3">
@@ -278,6 +289,6 @@ export function PainelGastoEmpresa({ gastos, contasEmpresa, abrirNovo = false }:
           </FormularioModal>
         ) : null}
       </Modal>
-    </div>
+    </Bloco>
   );
 }

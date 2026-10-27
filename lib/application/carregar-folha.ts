@@ -21,16 +21,27 @@ export async function carregarFolha(competencia: string) {
     listarEmprestimosMeta(competencia),
   ]);
   const reposicao = somarDevolucao(emprestimos, competencia);
-  const resultado = calcularMesPersistido(mes, fatura.fatura, preferencia.gastoPessoalMes, reposicao);
-  const resumoAnterior = mesAnterior
+  const resultado = calcularMesPersistido(
+    mes,
+    fatura.faturaParcelas,
+    preferencia.gastoPessoalMes,
+    reposicao,
+    fatura.faturaFixo,
+  );
+  const resultadoAnterior = mesAnterior
+    ? calcularMesPersistido(
+        mesAnterior,
+        faturaDoMes(fatura.compras, mesAnterior.competencia),
+        preferencia.gastoPessoalMes,
+        somarDevolucao(emprestimos, mesAnterior.competencia),
+        fatura.faturaFixo,
+      )
+    : null;
+  const resumoAnterior = mesAnterior && resultadoAnterior
     ? {
         competencia: mesAnterior.competencia,
-        sobrou: calcularMesPersistido(
-          mesAnterior,
-          faturaDoMes(fatura.compras, mesAnterior.competencia),
-          preferencia.gastoPessoalMes,
-          somarDevolucao(emprestimos, mesAnterior.competencia),
-        ).resumo.sobrou,
+        sobrou: resultadoAnterior.resumo.sobrou,
+        ganhou: resultadoAnterior.resumo.ganhou,
       }
     : null;
 
@@ -40,9 +51,13 @@ export async function carregarFolha(competencia: string) {
     resumoAnterior,
     contas,
     parcelasCartao: fatura.parcelas,
-    faturaCartao: fatura.fatura,
+    recorrentesCartao: fatura.recorrentes,
+    faturaCartao: fatura.faturaParcelas,
+    cartaoFixo: fatura.faturaFixo,
     metaRendimentoPassivo: preferencia.metaRendimentoPassivo,
     gastoPessoalMes: preferencia.gastoPessoalMes,
+    destinoCartaoNome: preferencia.destinoCartaoNome,
+    destinoCartaoChave: preferencia.destinoCartaoChave,
     emprestimosMeta: emprestimos,
     reposicaoMeta: reposicao,
     abertoMeta: emprestimos.reduce((acc, emprestimo) => acc + emprestimo.aberto, 0),

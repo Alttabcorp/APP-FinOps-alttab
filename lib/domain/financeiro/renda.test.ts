@@ -15,6 +15,10 @@ describe("mapearRendaParaItem", () => {
       tipoItem: "EXTRA",
       papel: "PROVENTO_POUPANCA",
     });
+    expect(mapearRendaParaItem("RENDIMENTO", "Rendimento da meta")).toEqual({
+      tipoItem: "EXTRA",
+      papel: "PROVENTO_POUPANCA",
+    });
   });
 
   it("abre entradas, vales e o rendimento das contas, sem separar cônjuge", () => {
@@ -32,6 +36,7 @@ describe("mapearRendaParaItem", () => {
     expect(grupos[1].itens.map((renda) => renda.nome)).toEqual([
       "Rendimento das contas",
       "Rendimento da poupança",
+      "Rendimento da meta",
     ]);
   });
 

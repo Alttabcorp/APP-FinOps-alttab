@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { salvarMesAction } from "@/app/actions/mes";
+import { definirMesFechadoAction, salvarMesAction, trazerValoresMesAnteriorAction } from "@/app/actions/mes";
 import type { ItemDTO, MesDTO } from "@/lib/application/mes-mapper";
 import { calcularMes } from "@/lib/domain/financeiro/calcular-mes";
 import type { TipoItem } from "@/lib/domain/financeiro/tipos";
@@ -13,6 +13,7 @@ const calcular = (
   faturaCartao: number,
   gastoPessoalMes: number | null,
   reposicaoMeta: number,
+  cartaoFixo: number,
 ) =>
   calcularMes({
     saldo: porTipo(origem.itens, "SALDO"),
@@ -22,7 +23,7 @@ const calcular = (
     anuais: porTipo(origem.itens, "ANUAL"),
     despesasVariaveis: {
       feira: origem.feiraReal,
-      cartao: origem.cartaoReal + faturaCartao,
+      cartao: origem.cartaoReal,
       gasolina: origem.gasolinaReal,
     },
     investimentos: {
@@ -33,6 +34,8 @@ const calcular = (
     },
     gastoPessoalAlvo: gastoPessoalMes,
     reposicaoMeta,
+    cartaoParcelas: faturaCartao,
+    cartaoFixo,
   });
 
 type Args = {
@@ -40,6 +43,7 @@ type Args = {
   faturaCartao?: number;
   gastoPessoalMes?: number | null;
   reposicaoMeta?: number;
+  cartaoFixo?: number;
 };
 
 export function useMesEditavel({
@@ -47,6 +51,7 @@ export function useMesEditavel({
   faturaCartao = 0,
   gastoPessoalMes = null,
   reposicaoMeta = 0,
+  cartaoFixo = 0,
 }: Args) {
   const [mes, setMes] = useState(mesInicial);
   const [status, setStatus] = useState("");
@@ -62,13 +67,13 @@ export function useMesEditavel({
   }, [mesInicial]);
 
   const totais = useMemo(
-    () => calcular(mes, faturaCartao, gastoPessoalMes, reposicaoMeta),
-    [mes, faturaCartao, gastoPessoalMes, reposicaoMeta],
+    () => calcular(mes, faturaCartao, gastoPessoalMes, reposicaoMeta, cartaoFixo),
+    [mes, faturaCartao, gastoPessoalMes, reposicaoMeta, cartaoFixo],
   );
 
   const comPoupancaAutomatica = (origem: MesDTO): MesDTO => {
     if (origem.poupancaEditado) return origem;
-    const calculado = calcular(origem, 0, gastoPessoalMes, reposicaoMeta);
+    const calculado = calcular(origem, 0, gastoPessoalMes, reposicaoMeta, cartaoFixo);
     return { ...origem, poupancaReal: calculado.investimentos.poupanca.sugestao };
   };
 
@@ -105,6 +110,80 @@ export function useMesEditavel({
     });
   };
 
+  const atualizarItem = (indice: number, patch: Partial<ItemDTO>) => {
+    agendarSalvar({
+      ...mes,
+      itens: mes.itens.map((item, i) => (i === indice ? { ...item, ...patch } : item)),
+    });
+  };
+
+  const proximaOrdem = () => mes.itens.reduce((max, item) => Math.max(max, item.ordem), -1) + 1;
+
+  const adicionarExtraMes = (nome: string, valor: number, pago: boolean) => {
+    agendarSalvar({
+      ...mes,
+      itens: [
+        ...mes.itens,
+        {
+          tipo: "EXTRA_MES",
+          nome: nome.trim() || "Sem nome",
+          valor,
+          ordem: proximaOrdem(),
+          pago,
+          papel: null,
+        },
+      ],
+    });
+  };
+
+  const adicionarSaldo = (nome: string, valor: number) => {
+    agendarSalvar({
+      ...mes,
+      itens: [
+        ...mes.itens,
+        {
+          tipo: "SALDO",
+          nome: nome.trim() || "Bico",
+          valor,
+          ordem: proximaOrdem(),
+          pago: false,
+          papel: null,
+        },
+      ],
+    });
+  };
+
+  const trazerEntradasAnteriores = () => {
+    startTransition(async () => {
+      setStatus("Trazendo entradas…");
+      const resposta = await trazerValoresMesAnteriorAction(mes.competencia, ["SALDO", "EXTRA"]);
+      if (resposta.ok) {
+        setMes(resposta.mes);
+        setSujo(false);
+        setStatus("Entradas do mês anterior, como previsão.");
+      } else setStatus(resposta.erro);
+    });
+  };
+
+  const definirFechado = (fechado: boolean) => {
+    startTransition(async () => {
+      if (fechado && sujo) {
+        setStatus("Salvando…");
+        const salvo = await salvarMesAction(comPoupancaAutomatica(mes));
+        if (!salvo.ok) {
+          setStatus(salvo.erro);
+          return;
+        }
+      }
+      const resposta = await definirMesFechadoAction(mes.competencia, fechado);
+      if (resposta.ok) {
+        setMes(resposta.mes);
+        setSujo(false);
+        setStatus(fechado ? "Mês fechado." : "Mês reaberto.");
+      } else setStatus(resposta.erro);
+    });
+  };
+
   return {
     mes,
     totais,
@@ -114,8 +193,13 @@ export function useMesEditavel({
     sujo,
     porTipo: (tipo: TipoItem) => porTipo(mes.itens, tipo),
     atualizarItens,
+    atualizarItem,
+    adicionarExtraMes,
+    adicionarSaldo,
     marcarPago,
     agendarSalvar,
     salvar,
+    definirFechado,
+    trazerEntradasAnteriores,
   };
 }

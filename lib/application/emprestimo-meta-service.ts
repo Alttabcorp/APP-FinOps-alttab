@@ -8,8 +8,10 @@ import {
 } from "@/lib/application/emprestimo-meta-mapper";
 import { valorDaParcela } from "@/lib/domain/financeiro/cartao";
 import { competenciaAtual, isCompetencia } from "@/lib/domain/financeiro/competencia";
+import { contaPodeSacar } from "@/lib/domain/financeiro/conta";
 import {
   abertoEmprestimoMeta,
+  avaliarReposicao,
   devolverParaMeta,
   sacarDaMeta,
   somarDevolucao,
@@ -17,22 +19,22 @@ import {
 
 const LIMITE_NOME = 80;
 
-const incluirConta = { conta: { select: { nome: true } } } as const;
+const incluirConta = { conta: { select: { nome: true, finalidade: true } } } as const;
 
 const validarPayload = (payload: EmprestimoMetaPayload) => {
   const nome = payload.nome.trim();
-  if (!nome) throw new Error("Informe o que foi comprado.");
-  if (nome.length > LIMITE_NOME) throw new Error("O nome da compra é longo demais.");
+  if (!nome) throw new Error("Informe o motivo da retirada.");
+  if (nome.length > LIMITE_NOME) throw new Error("O nome da retirada é longo demais.");
   const valorTotal = Number(payload.valorTotal);
   if (!Number.isFinite(valorTotal) || valorTotal <= 0) {
-    throw new Error("Informe o valor da compra à vista.");
+    throw new Error("Informe o valor da retirada.");
   }
   const parcelas = Math.trunc(Number(payload.parcelas));
   if (!Number.isFinite(parcelas) || parcelas < 1 || parcelas > 48) {
-    throw new Error("Informe de 1 a 48 parcelas para devolver.");
+    throw new Error("Informe de 1 a 48 parcelas para repor.");
   }
   if (!isCompetencia(payload.competenciaInicio)) {
-    throw new Error("Informe o mês da primeira devolução.");
+    throw new Error("Informe o mês da primeira reposição.");
   }
   return {
     nome,
@@ -43,18 +45,20 @@ const validarPayload = (payload: EmprestimoMetaPayload) => {
   };
 };
 
-const contaMeta = async (contaId?: string) => {
+const contaSacavel = async (contaId?: string) => {
   if (contaId) {
     const conta = await prisma.contaBancaria.findUnique({ where: { id: contaId } });
-    if (!conta) throw new Error("Conta da meta não encontrada.");
-    if (conta.finalidade !== "META") throw new Error("Só a meta empresta para compra à vista.");
+    if (!conta) throw new Error("Conta não encontrada.");
+    if (!contaPodeSacar(conta.finalidade)) {
+      throw new Error("Só poupança, reserva e meta podem ter retirada.");
+    }
     return conta;
   }
   const conta = await prisma.contaBancaria.findFirst({
-    where: { finalidade: "META" },
+    where: { finalidade: { in: ["META", "RESERVA", "POUPANCA"] } },
     orderBy: [{ ordem: "asc" }, { criadoEm: "asc" }],
   });
-  if (!conta) throw new Error("Cadastre a conta da meta antes de sacar.");
+  if (!conta) throw new Error("Cadastre poupança, reserva ou meta antes de sacar.");
   return conta;
 };
 
@@ -75,7 +79,14 @@ export const reposicaoMetaNaCompetencia = async (competencia: string) => {
 
 export const registrarSaqueMeta = async (payload: EmprestimoMetaPayload): Promise<EmprestimoMetaComSituacao> => {
   const dados = validarPayload(payload);
-  const conta = await contaMeta(payload.contaId);
+  const conta = await contaSacavel(payload.contaId);
+  const sobraMes = Number.isFinite(Number(payload.sobraMes)) ? Number(payload.sobraMes) : 0;
+  const plano = avaliarReposicao(dados.valorTotal, dados.parcelas, sobraMes);
+  if (!plano.cabeNoMes && !payload.confirmado) {
+    throw new Error(
+      "Não dá para repor essa retirada sem deixar o mês negativo. Confirme se quiser seguir mesmo assim.",
+    );
+  }
   const saque = sacarDaMeta(Number(conta.saldo), dados.valorTotal);
   const ultima = await prisma.emprestimoMeta.findFirst({
     orderBy: { ordem: "desc" },
@@ -108,7 +119,7 @@ export const devolverEmprestimoMeta = async (
     where: { id: payload.id },
     include: { conta: true },
   });
-  if (!existente) throw new Error("Compra à vista não encontrada.");
+  if (!existente) throw new Error("Retirada não encontrada.");
   const aberto = abertoEmprestimoMeta({
     valorTotal: Number(existente.valorTotal),
     pagoTotal: Number(existente.pagoTotal),
@@ -135,7 +146,7 @@ export const excluirEmprestimoMeta = async (id: string) => {
     where: { id },
     include: { conta: true },
   });
-  if (!existente) throw new Error("Compra à vista não encontrada.");
+  if (!existente) throw new Error("Retirada não encontrada.");
   const pago = Number(existente.pagoTotal);
   const valorTotal = Number(existente.valorTotal);
 

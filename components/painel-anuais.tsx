@@ -6,6 +6,7 @@ import { excluirContaAnualAction, salvarContaAnualAction } from "@/app/actions/a
 import { CampoLinha, CampoSelect, CampoTexto } from "@/components/campo";
 import { CampoMoeda } from "@/components/campo-moeda";
 import { CampoPassos } from "@/components/campo-passos";
+import { Bloco } from "@/components/bloco";
 import { AcoesCadastro, FormularioModal } from "@/components/formulario-modal";
 import { Modal } from "@/components/modal";
 import type { ContaAnualDTO, ContaAnualPayload } from "@/lib/application/anual-mapper";
@@ -15,9 +16,9 @@ import {
   formatarMesCalendario,
   formatarPeriodoAnual,
   LADOS_CONTA_ANUAL,
-  mesesAteCobranca,
   parcelaAnualNaCompetencia,
   ROTULOS_LADO_ANUAL,
+  sugerirReservaMensal,
   valorParcelaAnual,
   type LadoContaAnual,
 } from "@/lib/domain/financeiro/anual";
@@ -32,26 +33,35 @@ type Rascunho = {
   mes: number;
   parcelas: number;
   lado: LadoContaAnual;
+  banco: string;
+  chavePix: string;
 };
 
 const diaHoje = () => Math.min(31, Math.max(1, new Date().getDate()));
 
-const rascunhoVazio = (): Rascunho => ({
-  nome: "",
-  valor: 0,
-  dia: diaHoje(),
-  mes: Number(competenciaAtual().slice(5)),
-  parcelas: 1,
-  lado: "CASA",
-});
+const rascunhoVazio = (): Rascunho => {
+  const mes = Number(competenciaAtual().slice(5));
+  return {
+    nome: "",
+    valor: 0,
+    dia: diaHoje(),
+    mes,
+    parcelas: sugerirReservaMensal(0, mes, competenciaAtual()).meses,
+    lado: "CASA",
+    banco: "",
+    chavePix: "",
+  };
+};
 
 type Props = {
   contas: ContaAnualDTO[];
   lado?: LadoContaAnual;
   abrirNovo?: boolean;
+  titulo?: string;
+  nota?: string;
 };
 
-export function PainelAnuais({ contas, lado, abrirNovo = false }: Props) {
+export function PainelAnuais({ contas, lado, abrirNovo = false, titulo, nota }: Props) {
   const router = useRouter();
   const [editor, setEditor] = useState<Rascunho | null>(null);
   const [confirmarExclusao, setConfirmarExclusao] = useState(false);
@@ -65,12 +75,9 @@ export function PainelAnuais({ contas, lado, abrirNovo = false }: Props) {
     if (!abrirNovo) return;
     setErro("");
     setConfirmarExclusao(false);
+    const vazio = rascunhoVazio();
     setEditor({
-      nome: "",
-      valor: 0,
-      dia: diaHoje(),
-      mes: Number(competenciaAtual().slice(5)),
-      parcelas: 1,
+      ...vazio,
       lado: lado ?? "CASA",
     });
   }, [abrirNovo, lado]);
@@ -105,12 +112,39 @@ export function PainelAnuais({ contas, lado, abrirNovo = false }: Props) {
       mes: editor.mes,
       parcelas: editor.parcelas,
       lado: editor.lado,
+      banco: editor.banco,
+      chavePix: editor.chavePix,
     };
     startTransition(async () => {
       const resposta = await salvarContaAnualAction(payload);
       if (resposta.ok) {
         setStatus(editor.id ? "Conta anual atualizada." : "Conta anual cadastrada.");
         fechar();
+        router.refresh();
+      } else setErro(resposta.erro);
+    });
+  };
+
+  const aplicarReserva = (conta: ContaAnualDTO) => {
+    const reserva = sugerirReservaMensal(conta.valor, conta.mes, mesAtual);
+    startTransition(async () => {
+      const resposta = await salvarContaAnualAction({
+        id: conta.id,
+        nome: conta.nome,
+        valor: conta.valor,
+        dia: conta.dia,
+        mes: conta.mes,
+        parcelas: reserva.meses,
+        lado: conta.lado,
+        banco: conta.banco,
+        chavePix: conta.chavePix,
+      });
+      if (resposta.ok) {
+        setStatus(
+          reserva.caiNesteMes
+            ? "Cai neste mês: o valor inteiro entra na nota."
+            : `Vão separar ${formatarMoeda(reserva.valorMes)} por mês até a cobrança.`,
+        );
         router.refresh();
       } else setErro(resposta.erro);
     });
@@ -129,16 +163,16 @@ export function PainelAnuais({ contas, lado, abrirNovo = false }: Props) {
   };
 
   return (
-    <div>
-      <p className="sr-only" aria-live="polite">
-        {status}
-      </p>
-
-      <div className="flex flex-wrap items-end justify-between gap-4 border-t border-line pt-4">
-        <div>
-          <p className="text-sm text-mute">Cai neste mês</p>
-          <p className="amount mt-1 text-[1.85rem]">{formatarMoeda(desteMes)}</p>
-        </div>
+    <Bloco
+      titulo={titulo}
+      nota={nota}
+      figura={
+        <>
+          <p className="bloco-figura-rotulo">Cai neste mês</p>
+          <p className="amount">{formatarMoeda(desteMes)}</p>
+        </>
+      }
+      acao={
         <button
           className="btn-primary"
           type="button"
@@ -146,21 +180,27 @@ export function PainelAnuais({ contas, lado, abrirNovo = false }: Props) {
         >
           Cadastrar conta anual
         </button>
-      </div>
+      }
+    >
+      <p className="sr-only" aria-live="polite">
+        {status}
+      </p>
 
       {grupos.map((grupo) => (
-        <section key={grupo.lado} className="mt-8">
+        <section key={grupo.lado} className={lado ? undefined : "mt-2"}>
           {lado ? null : <h2 className="titulo-secao">{grupo.rotulo}</h2>}
           {grupo.itens.length === 0 ? (
-            <p className="vazio mt-3">
+            <p className="vazio">
               {grupo.lado === "EMPRESA"
                 ? "Domínio, máquina virtual e o que a empresa paga uma vez no ano."
                 : "IPTU, IPVA e o que a casa paga uma vez no ano."}
             </p>
           ) : (
-            <ul className="mt-3 grid gap-4">
+            <ul className="grid gap-3">
               {grupo.itens.map((conta) => {
                 const parcela = parcelaAnualNaCompetencia(conta, mesAtual);
+                const reserva = sugerirReservaMensal(conta.valor, conta.mes, mesAtual);
+                const podeSugerir = conta.parcelas !== reserva.meses;
                 return (
                   <li key={conta.id} className="ficha flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -180,6 +220,26 @@ export function PainelAnuais({ contas, lado, abrirNovo = false }: Props) {
                             }`
                           : `Não cai neste mês · cobra ${formatarDataCobranca(conta.dia, conta.mes)}`}
                       </p>
+                      {conta.banco || conta.chavePix ? (
+                        <p className="mt-1 text-xs text-mute">
+                          {[conta.banco, conta.chavePix ? `PIX ${conta.chavePix}` : ""].filter(Boolean).join(" · ")}
+                        </p>
+                      ) : null}
+                      {podeSugerir && reserva.valorMes > 0.005 ? (
+                        <p className="mt-2 text-sm">
+                          {reserva.caiNesteMes
+                            ? `Sugestão: o valor inteiro neste mês, ${formatarMoeda(conta.valor)}.`
+                            : `Sugestão: ${formatarMoeda(reserva.valorMes)} por mês até ${formatarDataCobranca(conta.dia, conta.mes)}, para no dia do pagamento o valor já estar junto.`}
+                          <button
+                            className="btn-link ml-1"
+                            type="button"
+                            disabled={pendente}
+                            onClick={() => aplicarReserva(conta)}
+                          >
+                            Separar por mês
+                          </button>
+                        </p>
+                      ) : null}
                     </div>
                     <button
                       className="btn shrink-0 text-sm"
@@ -193,6 +253,8 @@ export function PainelAnuais({ contas, lado, abrirNovo = false }: Props) {
                           mes: conta.mes,
                           parcelas: conta.parcelas,
                           lado: conta.lado,
+                          banco: conta.banco,
+                          chavePix: conta.chavePix,
                         })
                       }
                     >
@@ -213,17 +275,13 @@ export function PainelAnuais({ contas, lado, abrirNovo = false }: Props) {
       <Modal
         aberto={Boolean(editor)}
         titulo={editor?.id ? "Editar conta anual" : "Cadastrar conta anual"}
-        descricao="Informe quando cobra. Dá para dividir o valor nos meses até essa data."
+        descricao="Informe o valor e quando cobra. O sistema sugere guardar um pedaço todo mês, para no dia do pagamento o valor já estar junto."
         onClose={fechar}
       >
         {editor ? (
           <FormularioModal
             onSubmit={salvar}
-            resumo={
-              editor.parcelas > 1 && editor.valor > 0
-                ? `${formatarPeriodoAnual(editor.mes, editor.parcelas, editor.dia)} · ${editor.parcelas}x de ${formatarMoeda(valorParcelaAnual(editor.valor, editor.parcelas, 0))}`
-                : `Cobra ${formatarDataCobranca(editor.dia, editor.mes)}.`
-            }
+            resumo={textoSugestaoReserva(editor, mesAtual)}
             erro={erro}
             acoes={
               <AcoesCadastro
@@ -265,7 +323,16 @@ export function PainelAnuais({ contas, lado, abrirNovo = false }: Props) {
                 id="anual-mes"
                 label="Mês da cobrança"
                 value={String(editor.mes)}
-                onChange={(mes) => setEditor({ ...editor, mes: Number(mes) })}
+                onChange={(mes) => {
+                  const proximo = Number(mes);
+                  setEditor({
+                    ...editor,
+                    mes: proximo,
+                    parcelas: editor.id
+                      ? editor.parcelas
+                      : sugerirReservaMensal(editor.valor, proximo, mesAtual).meses,
+                  });
+                }}
               >
                 {Array.from({ length: 12 }, (_, indice) => indice + 1).map((mes) => (
                   <option key={mes} value={mes}>
@@ -276,25 +343,36 @@ export function PainelAnuais({ contas, lado, abrirNovo = false }: Props) {
             </CampoLinha>
             <CampoPassos
               id="anual-parcelas"
-              label="Parcelas até a cobrança"
+              label="Meses para juntar"
               value={editor.parcelas}
               min={1}
               max={12}
               onChange={(parcelas) => setEditor({ ...editor, parcelas })}
               detalhe={formatarPeriodoAnual(editor.mes, editor.parcelas, editor.dia)}
             />
-            <button
-              className="btn-link justify-self-start"
-              type="button"
-              onClick={() =>
-                setEditor({
-                  ...editor,
-                  parcelas: mesesAteCobranca(competenciaAtual(), editor.mes) || 1,
-                })
-              }
-            >
-              Usar os meses que faltam
-            </button>
+            {sugerirReservaMensal(editor.valor, editor.mes, mesAtual).meses !== editor.parcelas ? (
+              <button
+                className="btn-link justify-self-start"
+                type="button"
+                onClick={() =>
+                  setEditor({
+                    ...editor,
+                    parcelas: sugerirReservaMensal(editor.valor, editor.mes, mesAtual).meses,
+                  })
+                }
+              >
+                Usar a sugestão até a cobrança
+              </button>
+            ) : null}
+            {sugerirReservaMensal(editor.valor, editor.mes, mesAtual).caiNesteMes ? (
+              <button
+                className="btn-link justify-self-start"
+                type="button"
+                onClick={() => setEditor({ ...editor, parcelas: 12 })}
+              >
+                Juntar para o próximo ano (12 meses)
+              </button>
+            ) : null}
             {lado ? null : (
               <CampoSelect
                 id="anual-lado"
@@ -309,9 +387,40 @@ export function PainelAnuais({ contas, lado, abrirNovo = false }: Props) {
                 ))}
               </CampoSelect>
             )}
+            <CampoTexto
+              id="anual-banco"
+              label="Banco da caixinha"
+              hint="Opcional."
+              value={editor.banco}
+              placeholder="Ex.: Nubank"
+              onChange={(banco) => setEditor({ ...editor, banco })}
+            />
+            <CampoTexto
+              id="anual-chave"
+              label="Chave PIX"
+              hint="Opcional. Uma caixinha por conta anual."
+              value={editor.chavePix}
+              placeholder="CPF, e-mail, telefone ou aleatória"
+              onChange={(chavePix) => setEditor({ ...editor, chavePix })}
+            />
           </FormularioModal>
         ) : null}
       </Modal>
-    </div>
+    </Bloco>
   );
+}
+
+function textoSugestaoReserva(editor: Rascunho, competencia: string) {
+  const cobranca = formatarDataCobranca(editor.dia, editor.mes);
+  if (editor.valor < 0.005) {
+    return `Cobra ${cobranca}. Quando informarem o valor, o sistema sugere quanto guardar por mês.`;
+  }
+  const reserva = sugerirReservaMensal(editor.valor, editor.mes, competencia);
+  const valorMes = valorParcelaAnual(editor.valor, editor.parcelas, 0);
+  if (editor.parcelas <= 1) {
+    return reserva.caiNesteMes
+      ? `Cai neste mês: ${formatarMoeda(editor.valor)} no dia do pagamento.`
+      : `Cobra ${cobranca}. Sugestão: ${formatarMoeda(reserva.valorMes)} por mês até lá.`;
+  }
+  return `Separam ${formatarMoeda(valorMes)} por mês até ${cobranca}. No dia do pagamento o valor já está junto.`;
 }

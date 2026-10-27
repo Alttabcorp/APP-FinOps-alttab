@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   abertoEmprestimoMeta,
+  avaliarReposicao,
   devolverParaMeta,
   parcelaDevolucao,
   sacarDaMeta,
   situacaoEmprestimoMeta,
   somarDevolucao,
+  sugerirParcelasReposicao,
 } from "./emprestimo-meta";
 
 const quase = (obtido: number, esperado: number) => {
@@ -18,7 +20,30 @@ describe("empréstimo da meta", () => {
     quase(saque.saldo, 1700);
     quase(saque.saque, 800);
     expect(() => sacarDaMeta(100, 100.01)).toThrow(/não tem saldo/i);
-    expect(() => sacarDaMeta(100, 0)).toThrow(/valor da compra/i);
+    expect(() => sacarDaMeta(100, 0)).toThrow(/valor da retirada/i);
+  });
+
+  it("sugere parcelas que cabem na sobra do mês e avisa se apertar", () => {
+    const cabeDeUmaVez = sugerirParcelasReposicao(800, 3505);
+    expect(cabeDeUmaVez.parcelas).toBe(1);
+    quase(cabeDeUmaVez.valorParcela, 800);
+    expect(cabeDeUmaVez.cabeNoMes).toBe(true);
+
+    const quatro = sugerirParcelasReposicao(800, 200);
+    expect(quatro.parcelas).toBe(4);
+    quase(quatro.valorParcela, 200);
+    expect(quatro.cabeNoMes).toBe(true);
+
+    const apertado = sugerirParcelasReposicao(800, 0);
+    expect(apertado.parcelas).toBe(48);
+    expect(apertado.cabeNoMes).toBe(false);
+
+    const naoCabe = sugerirParcelasReposicao(100, 1);
+    expect(naoCabe.parcelas).toBe(48);
+    expect(naoCabe.cabeNoMes).toBe(false);
+
+    expect(avaliarReposicao(800, 1, 200).cabeNoMes).toBe(false);
+    expect(avaliarReposicao(800, 4, 200).cabeNoMes).toBe(true);
   });
 
   it("devolve aos poucos e a última parcela zera a dívida", () => {

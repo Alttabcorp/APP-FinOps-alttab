@@ -36,8 +36,8 @@ export const GRUPOS_RENDA = [
   },
   {
     id: "rendimento",
-    rotulo: "Rendimentos das contas",
-    nota: "Reinveste. Se o mês apertar, entra nas contas.",
+    rotulo: "Rendimentos",
+    nota: "Poupança, fundo e meta. Reinveste; se o mês apertar, paga as contas.",
     tipos: ["RENDIMENTO"] as const,
   },
   {
@@ -68,7 +68,7 @@ export const isTitularRenda = (valor: unknown): valor is TitularRenda =>
 
 export const papelDoRendimento = (nome: string): PapelExtra => {
   const n = nome.toLowerCase();
-  if (n.includes("poupan")) return "PROVENTO_POUPANCA";
+  if (n.includes("poupan") || n.includes("meta")) return "PROVENTO_POUPANCA";
   return "PROVENTO_FUNDO";
 };
 
@@ -88,6 +88,7 @@ export const rendasPadrao = (): FonteRendaEntrada[] => [
   { nome: "Vale-alimentação", tipo: "VALE_ALIMENTACAO", titular: "EU", ordem: 5 },
   { nome: "Rendimento das contas", tipo: "RENDIMENTO", titular: "EU", ordem: 6 },
   { nome: "Rendimento da poupança", tipo: "RENDIMENTO", titular: "EU", ordem: 7 },
+  { nome: "Rendimento da meta", tipo: "RENDIMENTO", titular: "EU", ordem: 8 },
 ];
 
 export const agruparRendas = <T extends { tipo: TipoRenda }>(rendas: T[]) =>

@@ -15,6 +15,7 @@ const ACOES = [
   { href: "/empresa?novo=conta", rotulo: "Conta da empresa", nota: "Para reinvestir na empresa" },
   { href: "/empresa?novo=gasto", rotulo: "Gasto da empresa", nota: "Retirada e em que foi gasto" },
   { href: "/empresa?novo=anual", rotulo: "Conta anual da empresa", nota: "Domínio, máquina virtual" },
+  { href: "/cartao?novo=fixo", rotulo: "Gasto fixo no cartão", nota: "Academia, Cursor, iCloud — todo mês na fatura" },
   { href: "/cartao?novo=1", rotulo: "Compra no cartão", nota: "Parcelas entram na fatura" },
 ];
 

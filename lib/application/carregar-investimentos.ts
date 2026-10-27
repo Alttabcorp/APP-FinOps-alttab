@@ -1,4 +1,5 @@
 import { carregarFolha } from "@/lib/application/carregar-folha";
+import { montarMetas } from "@/lib/application/dashboard-visao";
 import { mesParaDto } from "@/lib/application/mes-mapper";
 import { listarMesesRecentes } from "@/lib/application/mes-service";
 import { competenciaAtual, isCompetencia } from "@/lib/domain/financeiro/competencia";
@@ -28,5 +29,16 @@ export async function carregarInvestimentos(competenciaPedido?: string) {
     faturaCartao: folha.faturaCartao,
     contas,
     historico,
+    metas: montarMetas({
+      contas: folha.contas,
+      resultado: folha.resultado,
+      metaRendimentoPassivo: folha.metaRendimentoPassivo,
+      emprestimosMeta: folha.emprestimosMeta,
+    }),
+    gastoPessoalMes: folha.gastoPessoalMes,
+    reposicaoMeta: folha.reposicaoMeta,
+    cartaoFixo: folha.cartaoFixo,
+    emprestimosPoupanca: folha.emprestimosMeta.filter((emprestimo) => emprestimo.contaFinalidade === "POUPANCA"),
+    sobraMes: folha.resultado.distribuicao.metaFinal,
   };
 }

@@ -28,7 +28,7 @@ export function FaixaFalta({
   itens,
   resultado,
   feiraReal,
-  cartaoReal,
+  cartaoReal: _cartaoReal,
   gasolinaReal,
   poupancaEditado,
   onIrPagar,
@@ -55,10 +55,10 @@ export function FaixaFalta({
       onClick: onIrPagar,
     });
   }
-  if (resultado.prioridade.find((etapa) => etapa.id === "cartao")?.status === "falta") {
+  if (resultado.despesasVariaveis.cartao.estoura) {
+    acoes.push({ id: "cartao", rotulo: "Fatura passa do teto", onClick: onIrGastos });
+  } else if (resultado.prioridade.find((etapa) => etapa.id === "cartao")?.status === "falta") {
     acoes.push({ id: "cartao", rotulo: "Pagar o cartão", onClick: onIrGastos });
-  } else if (resultado.despesasVariaveis.cartao.sugestao > 0.005 && cartaoReal < 0.005) {
-    acoes.push({ id: "cartao", rotulo: "Informar cartão", onClick: onIrGastos });
   }
   if (resultado.prioridade.find((etapa) => etapa.id === "poupanca")?.status === "falta") {
     acoes.push({ id: "poupanca", rotulo: "Poupança", onClick: onEditarInvestimentos });
@@ -75,7 +75,7 @@ export function FaixaFalta({
   if (onDevolverMeta && reposicao && reposicao.precisa > 0.005) {
     acoes.push({
       id: "reposicao",
-      rotulo: reposicao.status === "falta" ? "Devolver à meta" : "Repor o saque da meta",
+      rotulo: reposicao.status === "falta" ? "Repor a retirada" : "Repor o que saiu",
       onClick: onDevolverMeta,
     });
   }

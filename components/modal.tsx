@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useLayoutEffect, useRef } from "react";
 
 type Props = {
   aberto: boolean;
@@ -16,11 +16,10 @@ export function Modal({ aberto, titulo, descricao, onClose, children, largura = 
   const tituloId = useId();
   const descId = useId();
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const dialogo = ref.current;
-    if (!dialogo) return;
-    if (aberto && !dialogo.open) dialogo.showModal();
-    if (!aberto && dialogo.open) dialogo.close();
+    if (!aberto || !dialogo) return;
+    if (!dialogo.open) dialogo.showModal();
   }, [aberto]);
 
   useEffect(() => {
@@ -31,6 +30,8 @@ export function Modal({ aberto, titulo, descricao, onClose, children, largura = 
       document.body.style.overflow = anterior;
     };
   }, [aberto]);
+
+  if (!aberto) return null;
 
   return (
     <dialog

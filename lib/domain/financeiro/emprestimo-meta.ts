@@ -28,11 +28,19 @@ const numero = (valor: number | null | undefined) => {
 export const abertoEmprestimoMeta = (emprestimo: Pick<EmprestimoMetaEntrada, "valorTotal" | "pagoTotal">) =>
   round2(Math.max(0, numero(emprestimo.valorTotal) - numero(emprestimo.pagoTotal)));
 
+export const MAX_PARCELAS_REPOSICAO = 48;
+
+export type PlanoReposicao = {
+  parcelas: number;
+  valorParcela: number;
+  cabeNoMes: boolean;
+};
+
 export const sacarDaMeta = (saldo: number, valor: number) => {
   const atual = round2(Math.max(0, numero(saldo)));
   const saque = round2(numero(valor));
-  if (saque <= 0) throw new Error("Informe o valor da compra.");
-  if (saque > atual + 0.005) throw new Error("A meta não tem saldo para essa compra à vista.");
+  if (saque <= 0) throw new Error("Informe o valor da retirada.");
+  if (saque > atual + 0.005) throw new Error("Essa conta não tem saldo para essa retirada.");
   return { saldo: round2(atual - saque), saque };
 };
 
@@ -40,11 +48,44 @@ export const devolverParaMeta = (saldo: number, aberto: number, valor: number) =
   const atual = round2(Math.max(0, numero(saldo)));
   const deve = round2(Math.max(0, numero(aberto)));
   const informado = round2(numero(valor));
-  if (informado <= 0) throw new Error("Informe quanto vai devolver.");
-  if (deve < 0.005) throw new Error("Essa compra já voltou para a meta.");
-  if (informado > deve + 0.005) throw new Error("Não deve tanto assim para a meta.");
+  if (informado <= 0) throw new Error("Informe quanto vai repor.");
+  if (deve < 0.005) throw new Error("Essa retirada já voltou para a conta.");
+  if (informado > deve + 0.005) throw new Error("Não deve tanto assim para repor.");
   const pago = round2(Math.min(informado, deve));
   return { saldo: round2(atual + pago), pago, aberto: round2(deve - pago) };
+};
+
+export const avaliarReposicao = (
+  valor: number,
+  parcelas: number,
+  sobraMes: number,
+): PlanoReposicao => {
+  const total = round2(Math.max(0, numero(valor)));
+  const n = Math.max(1, Math.min(MAX_PARCELAS_REPOSICAO, Math.trunc(numero(parcelas)) || 1));
+  const sobra = round2(Math.max(0, numero(sobraMes)));
+  const valorParcela = valorDaParcela(total, n, 0);
+  return {
+    parcelas: n,
+    valorParcela,
+    cabeNoMes: total < 0.005 || valorParcela <= sobra + 0.005,
+  };
+};
+
+export const sugerirParcelasReposicao = (
+  valor: number,
+  sobraMes: number,
+  maxParcelas = MAX_PARCELAS_REPOSICAO,
+): PlanoReposicao => {
+  const total = round2(Math.max(0, numero(valor)));
+  const sobra = round2(Math.max(0, numero(sobraMes)));
+  const teto = Math.max(1, Math.trunc(numero(maxParcelas)) || MAX_PARCELAS_REPOSICAO);
+
+  if (total < 0.005) return { parcelas: 1, valorParcela: 0, cabeNoMes: true };
+  if (sobra < 0.005) return avaliarReposicao(total, teto, sobra);
+  if (total <= sobra + 0.005) return { parcelas: 1, valorParcela: total, cabeNoMes: true };
+
+  const n = Math.min(teto, Math.max(2, Math.ceil(total / sobra - 1e-9)));
+  return avaliarReposicao(total, n, sobra);
 };
 
 export const parcelaDevolucao = (emprestimo: EmprestimoMetaEntrada, competencia: string) => {

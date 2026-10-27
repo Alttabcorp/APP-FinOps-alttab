@@ -3,11 +3,17 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { excluirRendaAction, salvarRendaAction } from "@/app/actions/renda";
+import { Bloco } from "@/components/bloco";
 import { CampoSelect, CampoTexto } from "@/components/campo";
 import { AcoesCadastro, FormularioModal } from "@/components/formulario-modal";
 import { Modal } from "@/components/modal";
 import type { FonteRendaDTO, FonteRendaPayload } from "@/lib/application/renda-mapper";
-import { ROTULOS_TIPO_RENDA, TIPOS_RENDA, type TipoRenda } from "@/lib/domain/financeiro/renda";
+import {
+  agruparRendas,
+  ROTULOS_TIPO_RENDA,
+  TIPOS_RENDA,
+  type TipoRenda,
+} from "@/lib/domain/financeiro/renda";
 
 type Rascunho = {
   id?: string;
@@ -34,14 +40,7 @@ export function PainelRendas({ rendas, abrirNovo = null }: Props) {
   const [erro, setErro] = useState("");
   const [pendente, startTransition] = useTransition();
   const ordenadas = [...rendas].sort((a, b) => a.ordem - b.ordem);
-  const nomes = ordenadas.map((renda) => renda.nome).filter(Boolean);
-
-  const abrirLista = () => {
-    setEditor(null);
-    setErro("");
-    setConfirmarExclusao(false);
-    setAberto(true);
-  };
+  const grupos = agruparRendas(ordenadas);
 
   const abrirForm = (rascunho: Rascunho) => {
     setErro("");
@@ -62,12 +61,6 @@ export function PainelRendas({ rendas, abrirNovo = null }: Props) {
     setErro("");
   };
 
-  const voltarLista = () => {
-    setEditor(null);
-    setConfirmarExclusao(false);
-    setErro("");
-  };
-
   const salvar = () => {
     if (!editor) return;
     const payload: FonteRendaPayload = {
@@ -79,7 +72,7 @@ export function PainelRendas({ rendas, abrirNovo = null }: Props) {
       const resposta = await salvarRendaAction(payload);
       if (resposta.ok) {
         setStatus(editor.id ? "Fonte atualizada." : "Fonte cadastrada.");
-        voltarLista();
+        fechar();
         router.refresh();
       } else setErro(resposta.erro);
     });
@@ -91,57 +84,78 @@ export function PainelRendas({ rendas, abrirNovo = null }: Props) {
       const resposta = await excluirRendaAction(editor.id as string);
       if (resposta.ok) {
         setStatus("Fonte removida.");
-        voltarLista();
+        fechar();
         router.refresh();
       } else setErro(resposta.erro);
     });
   };
 
   return (
-    <section className="panel p-5">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="text-lg font-semibold">Fontes</h2>
-          <p className="mt-1 text-sm text-mute">
-            {nomes.length === 0
-              ? "Nenhuma cadastrada ainda."
-              : nomes.length <= 4
-                ? nomes.join(", ")
-                : `${nomes.slice(0, 3).join(", ")} e mais ${nomes.length - 3}.`}
-          </p>
-        </div>
-        <button className="btn-primary shrink-0 text-sm" type="button" onClick={abrirLista}>
-          Gerenciar
-        </button>
-      </header>
+    <div>
+      {grupos.map((grupo) => (
+        <Bloco
+          key={grupo.id}
+          titulo={grupo.rotulo}
+          nota={grupo.nota}
+          acao={
+            grupo.id === "rendimento" ? (
+              <button className="btn-primary text-sm" type="button" onClick={() => abrirForm(rascunhoVazio("RENDIMENTO"))}>
+                Cadastrar rendimento
+              </button>
+            ) : grupo.id === "entrada" ? (
+              <button className="btn-primary text-sm" type="button" onClick={() => abrirForm(rascunhoVazio("EMPREGO"))}>
+                Cadastrar entrada
+              </button>
+            ) : undefined
+          }
+        >
+          {grupo.itens.length === 0 ? (
+            <p className="vazio">Nenhuma cadastrada ainda.</p>
+          ) : (
+            <ul>
+              {grupo.itens.map((renda) => (
+                <li
+                  key={renda.id}
+                  className="flex items-center justify-between gap-3 border-t border-line py-2.5 first:border-t-0 first:pt-0"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{renda.nome}</p>
+                    <p className="text-xs text-mute">{ROTULOS_TIPO_RENDA[renda.tipo]}</p>
+                  </div>
+                  <button className="btn shrink-0 text-sm" type="button" onClick={() => abrirForm(renda)}>
+                    Editar
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Bloco>
+      ))}
 
       <p className="sr-only" aria-live="polite">
         {status}
       </p>
 
       <Modal
-        aberto={aberto}
+        aberto={aberto && editor !== null}
         titulo={
-          editor
-            ? editor.id
-              ? "Editar fonte"
-              : editor.tipo === "RENDIMENTO"
-                ? "Cadastrar rendimento"
-                : "Cadastrar entrada"
-            : "Fontes"
+          editor?.id
+            ? "Editar fonte"
+            : editor?.tipo === "RENDIMENTO"
+              ? "Cadastrar rendimento"
+              : "Cadastrar entrada"
         }
         descricao={
-          editor
-            ? "Só o nome e o tipo. Depois informe o valor do mês nos blocos da página."
-            : "O valor de cada mês se informa em Dinheiro ou em Vales e rendimento."
+          editor?.tipo === "RENDIMENTO"
+            ? "Nome da conta que rendeu: poupança, fundo ou meta. O valor do mês se lança no Início."
+            : "Só o nome e o tipo. O valor do mês se lança no Início."
         }
         onClose={fechar}
-        largura={editor ? "md" : "lg"}
       >
         {editor ? (
           <FormularioModal
             onSubmit={salvar}
-            resumo="Depois de salvar, altere o valor do mês na página."
+            resumo="Depois de salvar, o valor do mês se lança no Início."
             erro={erro}
             acoes={
               <AcoesCadastro
@@ -151,7 +165,7 @@ export function PainelRendas({ rendas, abrirNovo = null }: Props) {
                 onPedirExclusao={() => setConfirmarExclusao(true)}
                 onCancelarExclusao={() => setConfirmarExclusao(false)}
                 onExcluir={excluir}
-                onVoltar={voltarLista}
+                onVoltar={fechar}
                 salvar="Salvar fonte"
                 excluir="Remover fonte"
               />
@@ -162,7 +176,9 @@ export function PainelRendas({ rendas, abrirNovo = null }: Props) {
               label="Nome"
               value={editor.nome}
               placeholder={
-                editor.tipo === "RENDIMENTO" ? "Ex.: Rendimento da poupança" : "Ex.: Projeto, bicos…"
+                editor.tipo === "RENDIMENTO"
+                  ? "Ex.: Rendimento da meta, da poupança, do fundo"
+                  : "Ex.: Projeto, bicos…"
               }
               autoFocus
               onChange={(nome) => setEditor({ ...editor, nome })}
@@ -180,37 +196,8 @@ export function PainelRendas({ rendas, abrirNovo = null }: Props) {
               ))}
             </CampoSelect>
           </FormularioModal>
-        ) : (
-          <div className="form-modal">
-            <p className="form-resumo">
-              {ordenadas.length === 0
-                ? "Nenhuma fonte ainda."
-                : `${ordenadas.length} ${ordenadas.length === 1 ? "fonte" : "fontes"}.`}
-            </p>
-            {ordenadas.length > 0 ? (
-              <ul className="form-campos">
-                {ordenadas.map((renda) => (
-                  <li key={renda.id} className="flex items-center justify-between gap-3 border-t border-line py-2.5">
-                    <div className="min-w-0">
-                      <p className="truncate font-medium">{renda.nome}</p>
-                      <p className="text-xs text-mute">{ROTULOS_TIPO_RENDA[renda.tipo]}</p>
-                    </div>
-                    <button className="btn shrink-0 text-sm" type="button" onClick={() => abrirForm(renda)}>
-                      Editar
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-            <div className="form-acoes">
-              <span />
-              <button className="btn-primary" type="button" onClick={() => abrirForm(rascunhoVazio("EMPREGO"))}>
-                Cadastrar fonte
-              </button>
-            </div>
-          </div>
-        )}
+        ) : null}
       </Modal>
-    </section>
+    </div>
   );
 }

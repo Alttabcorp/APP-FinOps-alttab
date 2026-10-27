@@ -1,5 +1,9 @@
+import { CabecaPagina } from "@/components/cabeca-pagina";
+import { NavCadastros } from "@/components/nav-cadastros";
 import { PainelCartao } from "@/components/painel-cartao";
-import { listarComprasCartao } from "@/lib/application/cartao-service";
+import { carregarFolha } from "@/lib/application/carregar-folha";
+import { listarComprasCartao, listarRecorrentesCartao } from "@/lib/application/cartao-service";
+import { competenciaAtual } from "@/lib/domain/financeiro/competencia";
 
 export const dynamic = "force-dynamic";
 
@@ -9,20 +13,27 @@ type Props = {
 
 export default async function PaginaCartao({ searchParams }: Props) {
   const { novo } = await searchParams;
-  const compras = await listarComprasCartao();
+  const [compras, recorrentes, folha] = await Promise.all([
+    listarComprasCartao(),
+    listarRecorrentesCartao(),
+    carregarFolha(competenciaAtual()),
+  ]);
 
   return (
-    <main id="conteudo" className="mx-auto max-w-[72rem] px-4 py-6 pb-16 lg:px-8 lg:py-8">
-      <header>
-        <h1 className="titulo">
-          Cartão
-        </h1>
-        <p className="mt-2 max-w-[42ch] text-sm text-mute">
-          Cadastre compras parceladas. A fatura de cada mês soma as parcelas daquele mês.
-        </p>
-      </header>
-      <div className="mt-8">
-        <PainelCartao compras={compras} abrirNovo={novo === "1"} />
+    <main id="conteudo" className="pagina">
+      <NavCadastros />
+      <CabecaPagina
+        titulo="Cartão"
+        nota="Gasto fixo e parcelas entram na fatura. O teto é o que sobra depois das contas."
+      />
+      <div className="mt-6">
+        <PainelCartao
+          compras={compras}
+          recorrentes={recorrentes}
+          teto={folha?.resultado.despesasVariaveis.cartao.teto ?? 0}
+          abrirNovo={novo === "1"}
+          abrirFixo={novo === "fixo"}
+        />
       </div>
     </main>
   );

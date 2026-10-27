@@ -17,7 +17,7 @@ const display = Fraunces({
 
 export const metadata: Metadata = {
   title: "Contas da casa",
-  description: "Dashboard da casa: entradas, contas, cartão, empresa e investimentos.",
+  description: "Contas da casa: o que entrou, o que pagou, o que sobrou para a meta.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

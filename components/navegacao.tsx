@@ -3,39 +3,58 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const ITENS = [
-  { href: "/", rotulo: "Início", ativo: (path: string) => path === "/" },
+type Item = {
+  href: string;
+  rotulo: string;
+  ativo: (path: string) => boolean;
+};
+
+const ITENS: Item[] = [
+  { href: "/", rotulo: "Início", ativo: (path) => path === "/" },
+  { href: "/investimentos", rotulo: "Investimentos", ativo: (path) => path.startsWith("/investimentos") },
   {
-    href: "/entradas",
-    rotulo: "Entradas",
-    ativo: (path: string) =>
-      path.startsWith("/entradas") || path.startsWith("/rendimentos") || path.startsWith("/rendas"),
+    href: "/acompanhar",
+    rotulo: "Acompanhar",
+    ativo: (path) => path.startsWith("/acompanhar") || path.startsWith("/historico"),
   },
-  { href: "/gastos", rotulo: "Gastos", ativo: (path: string) => path.startsWith("/gastos") },
-  { href: "/investimentos", rotulo: "Investimentos", ativo: (path: string) => path.startsWith("/investimentos") },
-  { href: "/contas", rotulo: "Contas", ativo: (path: string) => path.startsWith("/contas") },
-  { href: "/empresa", rotulo: "Empresa", ativo: (path: string) => path.startsWith("/empresa") },
-  { href: "/cartao", rotulo: "Cartão", ativo: (path: string) => path.startsWith("/cartao") },
+  {
+    href: "/dashboard",
+    rotulo: "Números",
+    ativo: (path) => path.startsWith("/dashboard"),
+  },
+  {
+    href: "/cadastros",
+    rotulo: "Cadastros",
+    ativo: (path) =>
+      path.startsWith("/cadastros") ||
+      path.startsWith("/entradas") ||
+      path.startsWith("/gastos") ||
+      path.startsWith("/contas") ||
+      path.startsWith("/empresa") ||
+      path.startsWith("/cartao") ||
+      path.startsWith("/anuais") ||
+      path.startsWith("/rendas") ||
+      path.startsWith("/rendimentos"),
+  },
 ];
 
 export function Navegacao() {
   const path = usePathname();
 
   return (
-    <nav aria-label="Principal" className="flex flex-wrap gap-1 lg:flex-col">
-      {ITENS.map((item) => {
-        const ativo = item.ativo(path);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            aria-current={ativo ? "page" : undefined}
-            className="nav-link"
-          >
-            {item.rotulo}
-          </Link>
-        );
-      })}
+    <nav aria-label="Principal">
+      <ul className="nav-grupo">
+        {ITENS.map((item) => {
+          const ativo = item.ativo(path);
+          return (
+            <li key={item.href}>
+              <Link href={item.href} aria-current={ativo ? "page" : undefined} className="nav-link">
+                {item.rotulo}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
     </nav>
   );
 }

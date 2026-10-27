@@ -3,8 +3,13 @@ import { carregarDashboard } from "@/lib/application/carregar-dashboard";
 
 export const dynamic = "force-dynamic";
 
-export default async function PaginaInicial() {
-  const dados = await carregarDashboard();
+type Props = {
+  searchParams: Promise<{ mes?: string }>;
+};
+
+export default async function PaginaInicial({ searchParams }: Props) {
+  const { mes } = await searchParams;
+  const dados = await carregarDashboard(mes);
   if (!dados) {
     return (
       <main id="conteudo" className="mx-auto max-w-[72rem] px-4 py-6 lg:px-8">

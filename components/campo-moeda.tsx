@@ -12,6 +12,7 @@ type Props = {
   name?: string;
   hint?: string;
   rotuloVisivel?: boolean;
+  autoFocus?: boolean;
 };
 
 const formatarEntrada = (valor: number) =>
@@ -28,6 +29,7 @@ export function CampoMoeda({
   name,
   hint,
   rotuloVisivel = true,
+  autoFocus = false,
 }: Props) {
   const [texto, setTexto] = useState(() => formatarEntrada(value));
   const [focado, setFocado] = useState(false);
@@ -49,6 +51,7 @@ export function CampoMoeda({
         inputMode="decimal"
         autoComplete="off"
         spellCheck={false}
+        autoFocus={autoFocus}
         value={texto}
         onFocus={(evento) => {
           setFocado(true);

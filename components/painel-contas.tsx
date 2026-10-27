@@ -6,6 +6,7 @@ import { excluirContaAction, salvarContaAction } from "@/app/actions/conta";
 import { BarraMeta } from "@/components/barra-meta";
 import { CampoSelect, CampoTexto } from "@/components/campo";
 import { CampoMoeda } from "@/components/campo-moeda";
+import { Bloco } from "@/components/bloco";
 import { AcoesCadastro, FormularioModal } from "@/components/formulario-modal";
 import { Modal } from "@/components/modal";
 import type { ContaComProgresso, ContaPayload } from "@/lib/application/conta-mapper";
@@ -13,7 +14,6 @@ import {
   FINALIDADES_CONTA,
   NOTAS_FINALIDADE,
   ROTULOS_FINALIDADE,
-  avisoSaque,
   somarSaldos,
   usaMetaEstoque,
   usaMetaMensal,
@@ -28,6 +28,10 @@ type Rascunho = {
   saldo: number;
   meta: number;
   metaMensal: number;
+  banco: string;
+  titular: string;
+  chavePix: string;
+  recebePoupanca: boolean;
 };
 
 const rascunhoVazio = (): Rascunho => ({
@@ -36,6 +40,10 @@ const rascunhoVazio = (): Rascunho => ({
   saldo: 0,
   meta: 0,
   metaMensal: 0,
+  banco: "",
+  titular: "",
+  chavePix: "",
+  recebePoupanca: false,
 });
 
 const daConta = (conta: ContaComProgresso): Rascunho => ({
@@ -45,6 +53,10 @@ const daConta = (conta: ContaComProgresso): Rascunho => ({
   saldo: conta.saldo,
   meta: conta.meta ?? 0,
   metaMensal: conta.metaMensal ?? 0,
+  banco: conta.banco,
+  titular: conta.titular,
+  chavePix: conta.chavePix,
+  recebePoupanca: conta.recebePoupanca,
 });
 
 type Props = {
@@ -53,6 +65,9 @@ type Props = {
   finalidadePadrao?: FinalidadeConta;
   abrirNovo?: boolean;
   vazio?: string;
+  titulo?: string;
+  nota?: string;
+  rotuloTotal?: string;
 };
 
 export function PainelContas({
@@ -61,6 +76,9 @@ export function PainelContas({
   finalidadePadrao,
   abrirNovo = false,
   vazio = "Nenhuma conta ainda. Cadastre poupança, reserva, meta, investimento ou empresa.",
+  titulo,
+  nota,
+  rotuloTotal = "Nas contas",
 }: Props) {
   const router = useRouter();
   const padrao = finalidadePadrao ?? finalidades[0] ?? "META";
@@ -76,7 +94,7 @@ export function PainelContas({
     if (!abrirNovo) return;
     setErro("");
     setConfirmarExclusao(false);
-    setEditor({ nome: "", finalidade: padrao, saldo: 0, meta: 0, metaMensal: 0 });
+    setEditor({ ...rascunhoVazio(), finalidade: padrao });
   }, [abrirNovo, padrao]);
 
   const fechar = () => {
@@ -94,6 +112,10 @@ export function PainelContas({
       saldo: editor.saldo,
       meta: editor.meta,
       metaMensal: editor.metaMensal,
+      banco: editor.banco,
+      titular: editor.titular,
+      chavePix: editor.chavePix,
+      recebePoupanca: editor.recebePoupanca,
     };
     startTransition(async () => {
       const resposta = await salvarContaAction(payload);
@@ -121,17 +143,29 @@ export function PainelContas({
     });
   };
 
-  return (
-    <div>
-      <p className="sr-only" aria-live="polite">
-        {status}
-      </p>
+  const detalheConta = (conta: ContaComProgresso) => {
+    const partes: string[] = [];
+    if (ROTULOS_FINALIDADE[conta.finalidade] !== conta.nome) {
+      partes.push(ROTULOS_FINALIDADE[conta.finalidade]);
+    }
+    if (conta.banco) partes.push(conta.banco);
+    if (conta.titular) partes.push(conta.titular);
+    if (conta.chavePix) partes.push(`PIX ${conta.chavePix}`);
+    if (conta.recebePoupanca) partes.push("recebe os 10% da poupança");
+    return partes.join(" · ");
+  };
 
-      <div className="flex flex-wrap items-end justify-between gap-4 border-t border-line pt-4">
-        <div>
-          <p className="text-sm text-mute">Nas contas</p>
-          <p className="amount mt-1 text-[1.85rem]">{formatarMoeda(total)}</p>
-        </div>
+  return (
+    <Bloco
+      titulo={titulo}
+      nota={nota}
+      figura={
+        <>
+          <p className="bloco-figura-rotulo">{rotuloTotal}</p>
+          <p className="amount">{formatarMoeda(total)}</p>
+        </>
+      }
+      acao={
         <button
           className="btn-primary"
           type="button"
@@ -143,61 +177,47 @@ export function PainelContas({
         >
           Cadastrar conta
         </button>
-      </div>
-
+      }
+    >
       {contas.length === 0 ? (
-        <p className="vazio mt-8">{vazio}</p>
+        <p className="vazio">{vazio}</p>
       ) : (
-        <ul className="mt-8 grid gap-6">
-          {contas.map((conta) => (
-            <li key={conta.id} className="ficha">
-              <header className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h2 className="text-lg font-semibold leading-tight text-pretty">
-                    {conta.nome}
-                  </h2>
-                  {ROTULOS_FINALIDADE[conta.finalidade] !== conta.nome ? (
-                    <p className="mt-1 text-sm text-mute">{ROTULOS_FINALIDADE[conta.finalidade]}</p>
-                  ) : null}
-                  <p className="mt-2 max-w-[46ch] text-sm text-mute">{NOTAS_FINALIDADE[conta.finalidade]}</p>
-                  {avisoSaque(conta.finalidade) ? (
-                    <p className="mt-1 text-sm text-outflow">{avisoSaque(conta.finalidade)}</p>
-                  ) : null}
-                </div>
-                <button
-                  className="btn shrink-0 text-sm"
-                  type="button"
-                  onClick={() => {
-                    setErro("");
-                    setConfirmarExclusao(false);
-                    setEditor(daConta(conta));
-                  }}
-                >
-                  Editar
-                </button>
-              </header>
-
-              <p className="money mt-4 text-2xl font-medium">{formatarMoeda(conta.saldo)}</p>
-              {conta.progresso.temMeta ? (
-                <div className="mt-4">
-                  <p className="text-sm text-mute">
-                    {formatarMoeda(conta.saldo)} de {formatarMoeda(conta.progresso.meta)}
-                  </p>
-                  <p className="mt-1 text-sm text-mute">
-                    {conta.progresso.atingida ? "Meta atingida" : `Faltam ${formatarMoeda(conta.progresso.falta)}`}
-                  </p>
-                  <div className="mt-3">
-                    <BarraMeta nome={conta.nome} progresso={conta.progresso} destaque />
+        <ul className="grid gap-3">
+          {contas.map((conta) => {
+            const detalhe = detalheConta(conta);
+            return (
+              <li key={conta.id} className="ficha ficha-linha">
+                <div className="ficha-topo">
+                  <div className="min-w-0">
+                    <h3 className="font-semibold leading-tight text-pretty">{conta.nome}</h3>
+                    {detalhe ? <p className="mt-1 text-sm text-mute">{detalhe}</p> : null}
+                    {conta.metaMensal && conta.metaMensal > 0.005 ? (
+                      <p className="mt-1 text-sm text-mute">
+                        Renda passiva: {formatarMoeda(conta.metaMensal)} por mês
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="ficha-valor">
+                    <p className="amount text-[1.35rem]">{formatarMoeda(conta.saldo)}</p>
+                    <button
+                      className="btn shrink-0 text-sm"
+                      type="button"
+                      onClick={() => {
+                        setErro("");
+                        setConfirmarExclusao(false);
+                        setEditor(daConta(conta));
+                      }}
+                    >
+                      Editar
+                    </button>
                   </div>
                 </div>
-              ) : null}
-              {conta.metaMensal && conta.metaMensal > 0.005 ? (
-                <p className="mt-3 text-sm text-mute">
-                  Objetivo de renda passiva: {formatarMoeda(conta.metaMensal)} por mês.
-                </p>
-              ) : null}
-            </li>
-          ))}
+                {conta.progresso.temMeta ? (
+                  <BarraMeta nome={conta.nome} progresso={conta.progresso} />
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
       )}
 
@@ -289,9 +309,46 @@ export function PainelContas({
                 onChange={(metaMensal) => setEditor({ ...editor, metaMensal })}
               />
             ) : null}
+            <CampoTexto
+              id="conta-banco"
+              label="Banco"
+              hint="Opcional. PicPay, Nubank…"
+              value={editor.banco}
+              placeholder="Ex.: PicPay"
+              onChange={(banco) => setEditor({ ...editor, banco })}
+            />
+            <CampoTexto
+              id="conta-titular"
+              label="Titular"
+              hint="Opcional."
+              value={editor.titular}
+              placeholder="Ex.: Glaymar"
+              onChange={(titular) => setEditor({ ...editor, titular })}
+            />
+            <CampoTexto
+              id="conta-chave"
+              label="Chave PIX"
+              hint="Opcional. O PIX continua no app do banco; aqui só copia a chave."
+              value={editor.chavePix}
+              placeholder="CPF, e-mail, telefone ou aleatória"
+              onChange={(chavePix) => setEditor({ ...editor, chavePix })}
+            />
+            <label className="flex cursor-pointer items-start gap-3" htmlFor="conta-poupanca">
+              <input
+                id="conta-poupanca"
+                className="checkbox mt-0.5"
+                type="checkbox"
+                checked={editor.recebePoupanca}
+                onChange={(evento) => setEditor({ ...editor, recebePoupanca: evento.target.checked })}
+              />
+              <span>
+                <span className="block text-sm">Recebe os 10% da poupança</span>
+                <span className="block text-xs text-mute">Uma conta só. Marquem se o 10% cai nesta chave.</span>
+              </span>
+            </label>
           </FormularioModal>
         ) : null}
       </Modal>
-    </div>
+    </Bloco>
   );
 }

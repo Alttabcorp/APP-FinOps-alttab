@@ -24,6 +24,7 @@ export async function PaginaFolhaMes({
         faturaCartao={folha.faturaCartao}
         gastoPessoalMes={folha.gastoPessoalMes}
         reposicaoMeta={folha.reposicaoMeta}
+        cartaoFixo={folha.cartaoFixo}
       />
     </main>
   );

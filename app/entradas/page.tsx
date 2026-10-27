@@ -12,9 +12,9 @@ export default async function PaginaEntradas({ searchParams }: Props) {
   const dados = await carregarEntradas(mes);
   if (!dados) {
     return (
-      <main id="conteudo" className="mx-auto max-w-[72rem] px-4 py-6 lg:px-8">
-        <h1 className="titulo">Entradas</h1>
-        <p className="mt-3 text-sm text-mute">Não foi possível abrir o mês atual.</p>
+      <main id="conteudo" className="pagina">
+        <h1 className="titulo">Fontes</h1>
+        <p className="pagina-nota">Não foi possível abrir o mês atual.</p>
       </main>
     );
   }

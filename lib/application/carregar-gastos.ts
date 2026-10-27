@@ -10,6 +10,7 @@ const entradaDoMes = (
   dto: ReturnType<typeof mesParaDto>,
   fatura: number,
   parcelas: { nome: string; valor: number }[],
+  recorrentes: { nome: string; valor: number }[] = [],
 ): EntradaGastosMes => ({
   itens: dto.itens,
   feira: dto.feiraReal,
@@ -17,6 +18,7 @@ const entradaDoMes = (
   cartaoAvulso: dto.cartaoReal,
   faturaCartao: fatura,
   parcelasCartao: parcelas,
+  recorrentesCartao: recorrentes,
 });
 
 export async function carregarGastos(competenciaPedido?: string) {
@@ -28,7 +30,7 @@ export async function carregarGastos(competenciaPedido?: string) {
   ]);
   if (!folha) return null;
 
-  const atual = entradaDoMes(folha.dto, folha.faturaCartao, folha.parcelasCartao);
+  const atual = entradaDoMes(folha.dto, folha.faturaCartao, folha.parcelasCartao, folha.recorrentesCartao);
   const mesAnterior = meses.filter((mes) => mes.competencia < competencia).at(-1);
   const anterior = mesAnterior
     ? entradaDoMes(
@@ -55,6 +57,7 @@ export async function carregarGastos(competenciaPedido?: string) {
     faturaCartao: folha.faturaCartao,
     gastoPessoalMes: folha.gastoPessoalMes,
     reposicaoMeta: folha.reposicaoMeta,
+    cartaoFixo: folha.cartaoFixo,
     analise: analisarGastos(atual, anterior, {
       feira: folha.resultado.despesasVariaveis.feira.sugestao,
       gasolina: folha.resultado.despesasVariaveis.gasolina.sugestao,

@@ -12,15 +12,15 @@ export default async function PaginaGastos({ searchParams }: Props) {
   const dados = await carregarGastos(mes);
   if (!dados) {
     return (
-      <main id="conteudo" className="mx-auto max-w-[72rem] px-4 py-6 lg:px-8">
-        <h1 className="titulo">Gastos</h1>
-        <p className="mt-3 text-sm text-mute">Não foi possível abrir o mês atual.</p>
+      <main id="conteudo" className="pagina">
+        <h1 className="titulo">Contas que se repetem</h1>
+        <p className="pagina-nota">Não foi possível abrir o mês atual.</p>
       </main>
     );
   }
 
   return (
-    <main id="conteudo" className="mx-auto max-w-[72rem] px-4 py-6 pb-16 lg:px-8 lg:py-8">
+    <main id="conteudo" className="pagina">
       <PainelLancamentoGastos dados={dados} />
     </main>
   );

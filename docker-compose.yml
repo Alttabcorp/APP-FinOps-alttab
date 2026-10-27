@@ -1,4 +1,24 @@
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: finops-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nada}
+      POSTGRES_DB: finops
+    volumes:
+      - ./data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5433:5432"
+    networks:
+      - servicos
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d finops"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   app:
     build: .
     restart: unless-stopped
@@ -7,6 +27,9 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: ${DATABASE_URL_DOCKER}
+    depends_on:
+      db:
+        condition: service_healthy
     networks:
       - servicos
 

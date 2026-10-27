@@ -4,33 +4,33 @@ Caderno web para organizar as contas do mês: saldo, extras, contas fixas, cart�
 
 ## Como rodar
 
-Este app **não sobe Postgres**. No servidor, use a instância compartilhada em `/home/garcon/infra/postgres` (um banco e um usuário por serviço).
+O Postgres deste app sobe junto no `docker-compose` e grava em `./data`.
 
 ### Docker neste servidor
 
-1. Suba o Postgres compartilhado, se ainda não estiver no ar:
-
-```bash
-cd /home/garcon/infra/postgres
-cp .env.example .env
-docker compose up -d
-./scripts/criar-servico.sh finops
-```
-
-2. Confira o `.env` deste projeto (`DATABASE_URL` para o host, `DATABASE_URL_DOCKER` para o container).
-
-3. Suba o app:
+A rede `servicos` precisa existir (o Postgres compartilhado da máquina a cria). Depois:
 
 ```bash
 cd /home/garcon/Alttab/APP-FinOps-alttab
+cp .env.example .env
 docker compose up --build -d
 ```
 
 Acesse [http://localhost:3000](http://localhost:3000). A migração Prisma roda na inicialização.
 
+Para zerar o banco e cadastrar de novo (apaga `./data`):
+
+```bash
+docker compose down
+rm -rf data
+docker compose up -d
+```
+
+Não rode `prisma db seed`: o seed preenche nomes de exemplo. Cadastrem as contas reais na tela.
+
 ### Desenvolvimento no servidor
 
-Com o Postgres compartilhado no ar e o `DATABASE_URL` apontando para `127.0.0.1`:
+Com o `db` no ar (`docker compose up -d db`) e o `DATABASE_URL` apontando para `127.0.0.1:5433`:
 
 ```bash
 cp .env.example .env

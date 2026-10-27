@@ -1,4 +1,4 @@
-import type { CompraCartao } from "@prisma/client";
+import type { CompraCartao, RecorrenteCartao } from "@prisma/client";
 
 export type CompraCartaoDTO = {
   id: string;
@@ -18,6 +18,19 @@ export type CompraCartaoPayload = {
   competenciaInicio: string;
 };
 
+export type RecorrenteCartaoDTO = {
+  id: string;
+  nome: string;
+  valor: number;
+  ordem: number;
+};
+
+export type RecorrenteCartaoPayload = {
+  id?: string;
+  nome: string;
+  valor: number;
+};
+
 export const compraParaDto = (compra: CompraCartao): CompraCartaoDTO => ({
   id: compra.id,
   nome: compra.nome,
@@ -26,4 +39,11 @@ export const compraParaDto = (compra: CompraCartao): CompraCartaoDTO => ({
   valorParcela: Number(compra.valorParcela),
   competenciaInicio: compra.competenciaInicio,
   ordem: compra.ordem,
+});
+
+export const recorrenteParaDto = (recorrente: RecorrenteCartao): RecorrenteCartaoDTO => ({
+  id: recorrente.id,
+  nome: recorrente.nome,
+  valor: Number(recorrente.valor),
+  ordem: recorrente.ordem,
 });

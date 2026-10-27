@@ -15,8 +15,8 @@ export const ROTULOS_FINALIDADE: Record<FinalidadeConta, string> = {
 };
 
 export const NOTAS_FINALIDADE: Record<FinalidadeConta, string> = {
-  POUPANCA: "Renda que pode sacar quando precisar.",
-  RESERVA: "Extras, saúde e se faltar emprego.",
+  POUPANCA: "Renda que pode sacar quando precisar. Na retirada, o sistema sugere parcelas para repor sem deixar o mês negativo.",
+  RESERVA: "Extras, saúde e se faltar emprego. Na retirada, o sistema sugere parcelas para repor sem deixar o mês negativo.",
   META: "Viagem, móveis e outros objetivos da casa. Dá para sacar à vista e devolver aos poucos, sem usar o cartão.",
   INVESTIMENTO: "Compra de ações. Esse dinheiro não sai. A renda passiva ajuda a pagar as contas.",
   EMPRESA: "Dinheiro para investir na empresa. A renda passiva volta para a empresa todo mês. Gasto da empresa sai daqui, com o que foi comprado.",

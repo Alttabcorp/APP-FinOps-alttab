@@ -10,6 +10,8 @@ export type ContaAnualDTO = {
   parcelas: number;
   valorParcela: number;
   lado: LadoContaAnual;
+  banco: string;
+  chavePix: string;
   ordem: number;
 };
 
@@ -21,6 +23,8 @@ export type ContaAnualPayload = {
   mes: number;
   parcelas: number;
   lado: LadoContaAnual;
+  banco?: string;
+  chavePix?: string;
 };
 
 export const contaAnualParaDto = (conta: ContaAnual): ContaAnualDTO => ({
@@ -32,5 +36,7 @@ export const contaAnualParaDto = (conta: ContaAnual): ContaAnualDTO => ({
   parcelas: conta.parcelas,
   valorParcela: Number(conta.valorParcela),
   lado: conta.lado,
+  banco: conta.banco ?? "",
+  chavePix: conta.chavePix ?? "",
   ordem: conta.ordem,
 });

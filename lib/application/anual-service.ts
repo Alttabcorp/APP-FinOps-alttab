@@ -9,6 +9,14 @@ import {
 } from "@/lib/domain/financeiro/anual";
 
 const LIMITE_NOME = 80;
+const LIMITE_BANCO = 40;
+const LIMITE_CHAVE = 120;
+
+const textoLivre = (valor: unknown, limite: number, rotulo: string) => {
+  const texto = String(valor ?? "").trim();
+  if (texto.length > limite) throw new Error(`${rotulo} é longo demais.`);
+  return texto;
+};
 
 const validarPayload = (payload: ContaAnualPayload) => {
   const nome = payload.nome.trim();
@@ -31,6 +39,8 @@ const validarPayload = (payload: ContaAnualPayload) => {
     parcelas,
     valorParcela: valorParcelaAnual(valor, parcelas, 0),
     lado: payload.lado,
+    banco: textoLivre(payload.banco, LIMITE_BANCO, "O banco"),
+    chavePix: textoLivre(payload.chavePix, LIMITE_CHAVE, "A chave PIX"),
   };
 };
 

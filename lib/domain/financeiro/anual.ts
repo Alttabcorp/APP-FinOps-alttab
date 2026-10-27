@@ -65,6 +65,26 @@ export const mesesAteCobranca = (competencia: string, mesCobranca: number) => {
   return moduloMes(mesCobranca - mesAtual) + 1;
 };
 
+export type ReservaAnual = {
+  meses: number;
+  valorMes: number;
+  caiNesteMes: boolean;
+};
+
+export const sugerirReservaMensal = (
+  valor: number,
+  mesCobranca: number,
+  competencia: string,
+): ReservaAnual => {
+  const meses = Math.max(1, mesesAteCobranca(competencia, mesCobranca));
+  const total = Number.isFinite(valor) ? Math.max(0, valor) : 0;
+  return {
+    meses,
+    valorMes: valorParcelaAnual(total, meses, 0),
+    caiNesteMes: meses === 1,
+  };
+};
+
 export const indiceParcelaAnual = (mesCobranca: number, parcelas: number, competencia: string) => {
   const inicio = mesInicioParcelaAnual(mesCobranca, parcelas);
   if (inicio < 0 || !isCompetencia(competencia)) return -1;

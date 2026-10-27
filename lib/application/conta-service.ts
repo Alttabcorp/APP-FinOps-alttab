@@ -14,6 +14,15 @@ import {
 } from "@/lib/domain/financeiro/conta";
 
 const LIMITE_NOME = 80;
+const LIMITE_BANCO = 40;
+const LIMITE_TITULAR = 80;
+const LIMITE_CHAVE = 120;
+
+const textoLivre = (valor: unknown, limite: number, rotulo: string) => {
+  const texto = String(valor ?? "").trim();
+  if (texto.length > limite) throw new Error(`${rotulo} é longo demais.`);
+  return texto;
+};
 
 const normalizarMeta = (valor: number | null | undefined) => {
   const n = Number(valor);
@@ -37,6 +46,10 @@ const validarPayload = (payload: ContaPayload) => {
     saldo,
     meta: normalizarMeta(payload.meta),
     metaMensal: normalizarMeta(payload.metaMensal),
+    banco: textoLivre(payload.banco, LIMITE_BANCO, "O banco"),
+    titular: textoLivre(payload.titular, LIMITE_TITULAR, "O titular"),
+    chavePix: textoLivre(payload.chavePix, LIMITE_CHAVE, "A chave PIX"),
+    recebePoupanca: Boolean(payload.recebePoupanca),
   };
 };
 
@@ -102,27 +115,36 @@ export const listarContas = async (): Promise<ContaComProgresso[]> => {
 export const salvarConta = async (payload: ContaPayload): Promise<ContaDTO> => {
   const dados = validarPayload(payload);
 
-  if (payload.id) {
-    const existente = await prisma.contaBancaria.findUnique({ where: { id: payload.id } });
-    if (!existente) throw new Error("Conta não encontrada.");
-    const atualizada = await prisma.contaBancaria.update({
-      where: { id: payload.id },
-      data: dados,
-    });
-    return contaParaDto(atualizada);
-  }
+  return prisma.$transaction(async (tx) => {
+    if (dados.recebePoupanca) {
+      await tx.contaBancaria.updateMany({
+        where: payload.id ? { id: { not: payload.id } } : {},
+        data: { recebePoupanca: false },
+      });
+    }
 
-  const ultima = await prisma.contaBancaria.findFirst({
-    orderBy: { ordem: "desc" },
-    select: { ordem: true },
+    if (payload.id) {
+      const existente = await tx.contaBancaria.findUnique({ where: { id: payload.id } });
+      if (!existente) throw new Error("Conta não encontrada.");
+      const atualizada = await tx.contaBancaria.update({
+        where: { id: payload.id },
+        data: dados,
+      });
+      return contaParaDto(atualizada);
+    }
+
+    const ultima = await tx.contaBancaria.findFirst({
+      orderBy: { ordem: "desc" },
+      select: { ordem: true },
+    });
+    const criada = await tx.contaBancaria.create({
+      data: {
+        ...dados,
+        ordem: (ultima?.ordem ?? -1) + 1,
+      },
+    });
+    return contaParaDto(criada);
   });
-  const criada = await prisma.contaBancaria.create({
-    data: {
-      ...dados,
-      ordem: (ultima?.ordem ?? -1) + 1,
-    },
-  });
-  return contaParaDto(criada);
 };
 
 export const excluirConta = async (id: string) => {

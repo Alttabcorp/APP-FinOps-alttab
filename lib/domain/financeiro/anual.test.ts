@@ -6,6 +6,7 @@ import {
   mesInicioParcelaAnual,
   mesesAteCobranca,
   parcelaAnualNaCompetencia,
+  sugerirReservaMensal,
   valorParcelaAnual,
   type ContaAnualEntrada,
 } from "./anual";
@@ -97,6 +98,28 @@ describe("mesesAteCobranca", () => {
     expect(mesesAteCobranca("2026-04", 10)).toBe(7);
     expect(mesesAteCobranca("2026-10", 10)).toBe(1);
     expect(mesesAteCobranca("2026-11", 10)).toBe(12);
+  });
+});
+
+describe("sugerirReservaMensal", () => {
+  it("divide o IPTU pelos meses que faltam até a cobrança", () => {
+    const reserva = sugerirReservaMensal(1200, 10, "2026-01");
+    expect(reserva.meses).toBe(10);
+    expect(reserva.caiNesteMes).toBe(false);
+    expect(reserva.valorMes).toBeCloseTo(120, 2);
+  });
+
+  it("pede o valor inteiro quando a cobrança é neste mês", () => {
+    const reserva = sugerirReservaMensal(1200, 10, "2026-10");
+    expect(reserva.meses).toBe(1);
+    expect(reserva.caiNesteMes).toBe(true);
+    expect(reserva.valorMes).toBeCloseTo(1200, 2);
+  });
+
+  it("junta o ano inteiro quando a cobrança já passou neste calendário", () => {
+    const reserva = sugerirReservaMensal(1200, 10, "2026-11");
+    expect(reserva.meses).toBe(12);
+    expect(reserva.valorMes).toBeCloseTo(100, 2);
   });
 });
 

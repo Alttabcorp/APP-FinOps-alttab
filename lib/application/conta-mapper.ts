@@ -12,6 +12,10 @@ export type ContaDTO = {
   saldo: number;
   meta: number | null;
   metaMensal: number | null;
+  banco: string;
+  titular: string;
+  chavePix: string;
+  recebePoupanca: boolean;
   ordem: number;
 };
 
@@ -27,6 +31,10 @@ export type ContaPayload = {
   saldo: number;
   meta?: number | null;
   metaMensal?: number | null;
+  banco?: string;
+  titular?: string;
+  chavePix?: string;
+  recebePoupanca?: boolean;
 };
 
 const decimalParaNumero = (valor: { toString(): string } | number | null) =>
@@ -39,6 +47,10 @@ export const contaParaDto = (conta: ContaBancaria): ContaDTO => ({
   saldo: Number(conta.saldo),
   meta: decimalParaNumero(conta.meta),
   metaMensal: decimalParaNumero(conta.metaMensal),
+  banco: conta.banco ?? "",
+  titular: conta.titular ?? "",
+  chavePix: conta.chavePix ?? "",
+  recebePoupanca: Boolean(conta.recebePoupanca),
   ordem: conta.ordem,
 });
 

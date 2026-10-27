@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import {
   excluirRenda,
+  salvarDestinoCartao,
   salvarGastoPessoalMes,
   salvarMetaRendimentoPassivo,
   salvarRenda,
@@ -10,7 +11,14 @@ import {
 import type { FonteRendaDTO, FonteRendaPayload } from "@/lib/application/renda-mapper";
 
 export type AcaoRendaResultado =
-  | { ok: true; renda?: FonteRendaDTO; metaRendimentoPassivo?: number | null; gastoPessoalMes?: number | null }
+  | {
+      ok: true;
+      renda?: FonteRendaDTO;
+      metaRendimentoPassivo?: number | null;
+      gastoPessoalMes?: number | null;
+      destinoCartaoNome?: string;
+      destinoCartaoChave?: string;
+    }
   | { ok: false; erro: string };
 
 const falha = (erro: unknown, fallback: string): AcaoRendaResultado => ({
@@ -62,5 +70,22 @@ export async function salvarMetaRendimentoAction(valor: number): Promise<AcaoRen
     return { ok: true, metaRendimentoPassivo: preferencia.metaRendimentoPassivo };
   } catch (erro) {
     return falha(erro, "Não foi possível salvar a meta de rendimento.");
+  }
+}
+
+export async function salvarDestinoCartaoAction(
+  nome: string,
+  chavePix: string,
+): Promise<AcaoRendaResultado> {
+  try {
+    const preferencia = await salvarDestinoCartao(nome, chavePix);
+    revalidar();
+    return {
+      ok: true,
+      destinoCartaoNome: preferencia.destinoCartaoNome,
+      destinoCartaoChave: preferencia.destinoCartaoChave,
+    };
+  } catch (erro) {
+    return falha(erro, "Não foi possível salvar o destino do cartão.");
   }
 }

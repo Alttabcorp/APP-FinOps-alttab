@@ -11,7 +11,27 @@ import {
 type MesComItens = MesFinanceiro & { itens: ItemFinanceiro[] };
 
 const LIMITE_NOME = 80;
+const LIMITE_DESTINO = 80;
+const LIMITE_CHAVE = 120;
 const ID_PREFERENCIA = "casa";
+
+const textoLivre = (valor: unknown, limite: number, rotulo: string) => {
+  const texto = String(valor ?? "").trim();
+  if (texto.length > limite) throw new Error(`${rotulo} é longo demais.`);
+  return texto;
+};
+
+const preferenciaParaDto = (atual: {
+  metaRendimentoPassivo: { toString(): string } | number | null;
+  gastoPessoalMes: { toString(): string } | number | null;
+  destinoCartaoNome: string;
+  destinoCartaoChave: string;
+}) => ({
+  metaRendimentoPassivo: atual.metaRendimentoPassivo == null ? null : Number(atual.metaRendimentoPassivo),
+  gastoPessoalMes: atual.gastoPessoalMes == null ? null : Number(atual.gastoPessoalMes),
+  destinoCartaoNome: atual.destinoCartaoNome ?? "",
+  destinoCartaoChave: atual.destinoCartaoChave ?? "",
+});
 
 const nomeChave = (nome: string) => nome.toLowerCase().trim();
 
@@ -43,27 +63,66 @@ export const garantirRendasPadrao = async () => {
     return;
   }
 
-  const temPoupanca = await prisma.fonteRenda.findFirst({
+  await garantirFonteRendimento("Rendimento da poupança", "poupan");
+  await garantirFonteRendimento("Rendimento da meta", "meta");
+};
+
+const garantirFonteRendimento = async (nome: string, trecho: string) => {
+  const existentes = await prisma.fonteRenda.findMany({
     where: {
       tipo: "RENDIMENTO",
-      nome: { contains: "poupan", mode: "insensitive" },
+      OR: [
+        { nome: { equals: nome, mode: "insensitive" } },
+        { nome: { contains: trecho, mode: "insensitive" } },
+      ],
     },
+    orderBy: { criadoEm: "asc" },
   });
-  if (temPoupanca) return;
+  const [fonte, ...duplicadas] = existentes;
+  if (fonte) {
+    for (const extra of duplicadas) {
+      await prisma.fonteRenda.delete({ where: { id: extra.id } });
+    }
+    await deduplicarItensDoRendimento(fonte);
+    return;
+  }
 
   const ultima = await prisma.fonteRenda.findFirst({
     orderBy: { ordem: "desc" },
     select: { ordem: true },
   });
-  const poupanca = await prisma.fonteRenda.create({
+  const criada = await prisma.fonteRenda.create({
     data: {
-      nome: "Rendimento da poupança",
+      nome,
       tipo: "RENDIMENTO",
       titular: "EU",
       ordem: (ultima?.ordem ?? -1) + 1,
     },
   });
-  await adicionarFonteAosMesesAbertos(poupanca);
+  await adicionarFonteAosMesesAbertos(criada);
+};
+
+const deduplicarItensDoRendimento = async (fonte: FonteRenda) => {
+  const mapeado = mapearRendaParaItem(fonte.tipo, fonte.nome);
+  const meses = await prisma.mesFinanceiro.findMany({
+    where: { fechado: false },
+    include: { itens: { orderBy: { ordem: "asc" } } },
+  });
+  for (const mes of meses) {
+    const iguais = mes.itens.filter(
+      (item) => item.tipo === "EXTRA" && nomeChave(item.nome) === nomeChave(fonte.nome),
+    );
+    const [ficar, ...resto] = iguais;
+    if (ficar && (ficar.fonteRendaId !== fonte.id || ficar.papel !== mapeado.papel)) {
+      await prisma.itemFinanceiro.update({
+        where: { id: ficar.id },
+        data: { fonteRendaId: fonte.id, papel: mapeado.papel },
+      });
+    }
+    for (const extra of resto) {
+      await prisma.itemFinanceiro.delete({ where: { id: extra.id } });
+    }
+  }
 };
 
 export const listarRendas = async (): Promise<FonteRendaDTO[]> => {
@@ -121,10 +180,7 @@ export const obterPreferenciaCasa = async () => {
     create: { id: ID_PREFERENCIA, atualizadoEm: new Date() },
     update: {},
   });
-  return {
-    metaRendimentoPassivo: atual.metaRendimentoPassivo == null ? null : Number(atual.metaRendimentoPassivo),
-    gastoPessoalMes: atual.gastoPessoalMes == null ? null : Number(atual.gastoPessoalMes),
-  };
+  return preferenciaParaDto(atual);
 };
 
 export const salvarGastoPessoalMes = async (valor: number | null) => {
@@ -135,10 +191,7 @@ export const salvarGastoPessoalMes = async (valor: number | null) => {
     create: { id: ID_PREFERENCIA, gastoPessoalMes: gasto, atualizadoEm: new Date() },
     update: { gastoPessoalMes: gasto },
   });
-  return {
-    metaRendimentoPassivo: atual.metaRendimentoPassivo == null ? null : Number(atual.metaRendimentoPassivo),
-    gastoPessoalMes: atual.gastoPessoalMes == null ? null : Number(atual.gastoPessoalMes),
-  };
+  return preferenciaParaDto(atual);
 };
 
 export const salvarMetaRendimentoPassivo = async (valor: number | null) => {
@@ -149,10 +202,18 @@ export const salvarMetaRendimentoPassivo = async (valor: number | null) => {
     create: { id: ID_PREFERENCIA, metaRendimentoPassivo: meta, atualizadoEm: new Date() },
     update: { metaRendimentoPassivo: meta },
   });
-  return {
-    metaRendimentoPassivo: atual.metaRendimentoPassivo == null ? null : Number(atual.metaRendimentoPassivo),
-    gastoPessoalMes: atual.gastoPessoalMes == null ? null : Number(atual.gastoPessoalMes),
-  };
+  return preferenciaParaDto(atual);
+};
+
+export const salvarDestinoCartao = async (nome: string, chavePix: string) => {
+  const destinoCartaoNome = textoLivre(nome, LIMITE_DESTINO, "O destino do cartão");
+  const destinoCartaoChave = textoLivre(chavePix, LIMITE_CHAVE, "A chave PIX");
+  const atual = await prisma.preferenciaCasa.upsert({
+    where: { id: ID_PREFERENCIA },
+    create: { id: ID_PREFERENCIA, destinoCartaoNome, destinoCartaoChave, atualizadoEm: new Date() },
+    update: { destinoCartaoNome, destinoCartaoChave },
+  });
+  return preferenciaParaDto(atual);
 };
 
 const itemCompativelComFonte = (

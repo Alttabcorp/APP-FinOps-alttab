@@ -9,10 +9,14 @@ type Props = {
   label: string;
   value: number;
   onChange: (valor: number) => void;
+  /** Chamado ao sair do campo, com o valor final. */
+  onCommit?: (valor: number) => void;
   name?: string;
   hint?: string;
   rotuloVisivel?: boolean;
   autoFocus?: boolean;
+  compact?: boolean;
+  disabled?: boolean;
 };
 
 const formatarEntrada = (valor: number) =>
@@ -26,10 +30,13 @@ export function CampoMoeda({
   label,
   value,
   onChange,
+  onCommit,
   name,
   hint,
   rotuloVisivel = true,
   autoFocus = false,
+  compact = false,
+  disabled = false,
 }: Props) {
   const [texto, setTexto] = useState(() => formatarEntrada(value));
   const [focado, setFocado] = useState(false);
@@ -39,7 +46,11 @@ export function CampoMoeda({
   }, [value, focado]);
 
   const campo = (
-    <div className={`field-money ${focado ? "is-focused" : ""}`}>
+    <div
+      className={`field-money ${compact ? "is-compact" : ""} ${focado ? "is-focused" : ""} ${
+        disabled ? "is-disabled" : ""
+      }`}
+    >
       <span className="field-money-prefix" aria-hidden="true">
         R$
       </span>
@@ -47,13 +58,17 @@ export function CampoMoeda({
         id={id}
         name={name ?? id}
         size={1}
-        className="money min-w-0 w-full flex-1 border-0 bg-transparent py-2.5 pr-3 text-right text-base outline-none"
+        className={`money min-w-0 w-full flex-1 border-0 bg-transparent text-right outline-none ${
+          compact ? "py-1.5 pr-2 text-sm" : "py-2.5 pr-3 text-base"
+        }`}
         inputMode="decimal"
         autoComplete="off"
         spellCheck={false}
         autoFocus={autoFocus}
+        disabled={disabled}
         value={texto}
         onFocus={(evento) => {
+          if (disabled) return;
           setFocado(true);
           evento.currentTarget.select();
         }}
@@ -61,7 +76,18 @@ export function CampoMoeda({
           const numero = paraNumero(texto);
           setFocado(false);
           onChange(numero);
+          onCommit?.(numero);
           setTexto(formatarEntrada(numero));
+        }}
+        onKeyDown={(evento) => {
+          if (evento.key !== "Enter") return;
+          evento.preventDefault();
+          const campos = Array.from(
+            document.querySelectorAll<HTMLInputElement>(".field-money input:not(:disabled)"),
+          );
+          const proximo = campos[campos.indexOf(evento.currentTarget) + 1];
+          if (proximo) proximo.focus();
+          else evento.currentTarget.blur();
         }}
         onChange={(evento) => {
           const proximo = evento.target.value;

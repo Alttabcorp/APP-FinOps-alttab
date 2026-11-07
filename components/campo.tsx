@@ -7,6 +7,7 @@ type CampoBase = {
   label: string;
   hint?: string;
   erro?: string;
+  rotuloVisivel?: boolean;
 };
 
 export function Campo({
@@ -14,11 +15,12 @@ export function Campo({
   label,
   hint,
   erro,
+  rotuloVisivel = true,
   children,
 }: CampoBase & { children: ReactNode }) {
   return (
     <div className="campo">
-      <label className="campo-label" htmlFor={id}>
+      <label className={rotuloVisivel ? "campo-label" : "sr-only"} htmlFor={id}>
         {label}
       </label>
       {children}

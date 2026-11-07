@@ -16,9 +16,10 @@ type Props = {
   onChange: (valor: string) => void;
   hint?: string;
   name?: string;
+  rotuloVisivel?: boolean;
 };
 
-export function CampoMes({ id, label, value, onChange, hint, name }: Props) {
+export function CampoMes({ id, label, value, onChange, hint, name, rotuloVisivel = true }: Props) {
   const atual = isCompetencia(value) ? value : competenciaAtual();
   const opcoes = opcoesCompetencia(competenciaAtual());
   const lista = opcoes.some((opcao) => opcao.valor === atual)
@@ -26,7 +27,7 @@ export function CampoMes({ id, label, value, onChange, hint, name }: Props) {
     : [{ valor: atual, rotulo: formatarCompetencia(atual) }, ...opcoes];
 
   return (
-    <Campo id={id} label={label} hint={hint}>
+    <Campo id={id} label={label} hint={hint} rotuloVisivel={rotuloVisivel}>
       <div className="campo-passos">
         <button
           className="passo-btn"

@@ -1,30 +1,34 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
-import { CampoTexto } from "@/components/campo";
+import { useRouter } from "next/navigation";
+import { useState, useTransition, type ReactNode } from "react";
+import { excluirContaAnualAction, salvarContaAnualAction } from "@/app/actions/anual";
+import { salvarCompraCartaoAction } from "@/app/actions/cartao";
+import { CampoLinha, CampoSelect, CampoTexto } from "@/components/campo";
+import { CampoMes } from "@/components/campo-mes";
+import { CampoPassos } from "@/components/campo-passos";
 import { CampoMoeda } from "@/components/campo-moeda";
 import { AcoesCadastro, FormularioModal } from "@/components/formulario-modal";
 import { Modal } from "@/components/modal";
 import type { LinhaMeta } from "@/lib/application/dashboard-visao";
 import { ehAPagar, progressoPagamento } from "@/lib/application/checklist";
 import type { ItemDTO, MesDTO } from "@/lib/application/mes-mapper";
-import type { ParcelaCartao } from "@/lib/domain/financeiro/cartao";
+import type { ContaAnualDTO } from "@/lib/application/anual-mapper";
+import { valorDaParcela, type ParcelaCartao } from "@/lib/domain/financeiro/cartao";
+import { formatarMesCalendario, sugerirReservaMensal } from "@/lib/domain/financeiro/anual";
+import { formatarCompetenciaCurta } from "@/lib/domain/financeiro/competencia";
 import type { ResultadoMes } from "@/lib/domain/financeiro/tipos";
+import type { CampoMarca } from "@/lib/domain/financeiro/transferencia";
 import { formatarMoeda } from "@/lib/formatacao";
 
 type CampoNota = "feiraReal" | "gasolinaReal" | "cartaoReal" | "fundoReal" | "alttabReal" | "poupancaReal";
 
-type SuperficieNota = "inicio" | "investimentos";
+type SuperficieNota = "inicio" | "entradas" | "contas" | "investimentos";
 
-type Editor =
-  | { tipo: "conta"; indice: number }
-  | { tipo: "entrada"; indice: number }
-  | { tipo: "campo"; campo: CampoNota }
-  | { tipo: "nova" }
-  | { tipo: "bico" };
+type Editor = { tipo: "nova" } | { tipo: "bico" } | { tipo: "anual"; id: string };
 
-type IdEtapa = "entrou" | "contas" | "cartao" | "poupanca" | "fundo" | "meta" | "alttab";
+type IdEtapa = "entrou" | "contas" | "poupanca" | "fundo" | "meta" | "alttab";
 
 type Props = {
   mes: MesDTO;
@@ -38,65 +42,37 @@ type Props = {
   onSalvarConta: (indice: number, valor: number, pago: boolean) => void;
   onSalvarItem: (indice: number, valor: number) => void;
   onSalvarCampo: (campo: CampoNota, valor: number) => void;
-  onNovaConta?: (nome: string, valor: number, pago: boolean) => void;
+  onNovaConta?: (nome: string, valor: number, pago: boolean, tipo?: "EXTRA_MES" | "CONTA") => void;
+  contasAnuais?: ContaAnualDTO[];
   onNovoBico?: (nome: string, valor: number) => void;
+  onRemover?: (indice: number) => void;
+  onRenomear?: (indice: number, nome: string) => void;
+  removido?: { item: ItemDTO } | null;
+  onDesfazer?: () => void;
+  onMarcarDeposito?: (campo: CampoMarca, feito: boolean) => void;
   somenteLeitura?: boolean;
 };
 
-const CAMPOS: Record<CampoNota, { nome: string; hint: (totais?: ResultadoMes) => string | undefined }> = {
-  feiraReal: {
-    nome: "Feira",
-    hint: () => "O que saiu na feira neste mês.",
-  },
-  gasolinaReal: {
-    nome: "Gasolina",
-    hint: () => "O que saiu de combustível neste mês.",
-  },
-  cartaoReal: {
-    nome: "Avulso no cartão",
-    hint: (totais) => {
-      const cartao = totais?.despesasVariaveis.cartao;
-      if (!cartao) return "O que não é gasto fixo nem parcela. O teto é o que sobrou depois das contas.";
-      if (cartao.estoura) {
-        return `A fatura já passa do teto ${formatarMoeda(cartao.teto)}. Não gastem mais neste cartão.`;
-      }
-      return `Ainda cabe ${formatarMoeda(cartao.cabe)} neste mês. Teto: ${formatarMoeda(cartao.teto)} depois das contas.`;
-    },
-  },
-  fundoReal: {
-    nome: "Fundo imobiliário",
-    hint: (totais) => textoPlanoFundo(totais),
-  },
-  alttabReal: {
-    nome: "Alttab",
-    hint: (totais) =>
-      totais?.rendimento.apertado
-        ? "Mês apertado: o depósito na empresa pode esperar."
-        : "Depósito na empresa. Geralmente R$ 100,00.",
-  },
-  poupancaReal: {
-    nome: "Poupança",
-    hint: (totais) =>
-      totais && totais.investimentos.poupanca.sugestao > 0.005
-        ? `10% das entradas: ${formatarMoeda(totais.investimentos.poupanca.sugestao)}. Se o mês apertar, usem nas contas.`
-        : "10% das entradas. Se o mês apertar, usem nas contas.",
-  },
-};
+const temValor = (valor: number) => Math.abs(valor) >= 0.005;
 
 export function NotaMes({
   mes,
-  faturaCartao = 0,
-  parcelasCartao = [],
-  recorrentesCartao = [],
   totais,
   metas = [],
+  parcelasCartao = [],
   superficie = "inicio",
   onToggle,
   onSalvarConta,
   onSalvarItem,
   onSalvarCampo,
   onNovaConta,
+  contasAnuais = [],
   onNovoBico,
+  onRemover,
+  onRenomear,
+  removido = null,
+  onDesfazer,
+  onMarcarDeposito,
   somenteLeitura = false,
 }: Props) {
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -113,29 +89,42 @@ export function NotaMes({
     .map((item, indice) => ({ item, indice }))
     .filter(({ item }) => ehAPagar(item.tipo));
   const pagamento = progressoPagamento(mes.itens);
-  const planoCartao = totais?.despesasVariaveis.cartao;
-  const cartaoTotal = planoCartao?.fatura ?? mes.cartaoReal + faturaCartao;
   const poupancaSugestao = totais?.investimentos.poupanca.sugestao ?? 0;
   const poupancaValor = mes.poupancaEditado ? mes.poupancaReal : poupancaSugestao;
+  const fundoSugestao = totais?.investimentos.fundo.sugestao ?? 0;
+  const alttabSugestao = totais?.investimentos.alttab.sugestao ?? 0;
   const paraMeta = totais?.distribuicao.metaFinal ?? 0;
   const fundo = totais?.investimentos.fundo;
   const agora = etapaAtual(mes, pagamento, totais, superficie);
   const passo = textoProximoPasso(mes, pagamento, totais, superficie);
+
   const abrir = (proximo: Editor) => {
     if (somenteLeitura) return;
     setEditor(proximo);
   };
 
   return (
-    <section className="nota" aria-labelledby="rito-titulo">
-      <header className="nota-cabeca">
-        <div className="min-w-0">
-          <h2 id="rito-titulo" className="titulo-secao">
-            {superficie === "investimentos" ? "Aportes deste mês" : "Neste mês"}
+    <section
+      className={`nota ${superficie !== "investimentos" ? "is-inicio" : ""}`}
+      aria-labelledby="rito-titulo"
+    >
+      {superficie === "investimentos" ? (
+        <header className="nota-cabeca">
+          <div className="min-w-0">
+            <h2 id="rito-titulo" className="titulo-secao">
+              Aportes deste mês
+            </h2>
+            {passo ? <p className="nota-passo mt-2">{passo}</p> : null}
+          </div>
+        </header>
+      ) : (
+        <header className="nota-cabeca is-fina">
+          <h2 id="rito-titulo" className="sr-only">
+            {superficie === "entradas" ? "Entradas do mês" : superficie === "contas" ? "Contas do mês" : "Neste mês"}
           </h2>
-          {passo ? <p className="nota-passo mt-2">{passo}</p> : null}
-        </div>
-      </header>
+          {passo ? <p className="nota-passo">{passo}</p> : null}
+        </header>
+      )}
 
       {superficie === "investimentos" ? (
         <div className="rito-corpo is-investimentos">
@@ -147,11 +136,15 @@ export function NotaMes({
             atual={agora === "poupanca"}
           >
             <ul>
-              <LinhaBotao
+              <LinhaValor
+                id="nota-poupanca"
                 nome="Poupança"
                 valor={poupancaValor}
                 detalhe={!mes.poupancaEditado && poupancaSugestao > 0.005 ? "sugestão" : undefined}
-                onClick={() => abrir({ tipo: "campo", campo: "poupancaReal" })}
+                sugestao={poupancaSugestao}
+                onChange={(valor) => onSalvarCampo("poupancaReal", valor)}
+                feito={mes.depositos?.poupanca}
+                onFeito={onMarcarDeposito ? (feito) => onMarcarDeposito("poupanca", feito) : undefined}
                 somenteLeitura={somenteLeitura}
               />
             </ul>
@@ -172,15 +165,14 @@ export function NotaMes({
           >
             <p className="rito-nota">{textoPlanoFundo(totais)}</p>
             <ul>
-              <LinhaBotao
+              <LinhaValor
+                id="nota-fundo"
                 nome="Fundo imobiliário"
                 valor={mes.fundoReal}
-                detalhe={
-                  mes.fundoReal < 0.005 && fundo && fundo.sugestao > 0.005
-                    ? `sugestão ${formatarMoeda(fundo.sugestao)}`
-                    : undefined
-                }
-                onClick={() => abrir({ tipo: "campo", campo: "fundoReal" })}
+                sugestao={fundoSugestao}
+                onChange={(valor) => onSalvarCampo("fundoReal", valor)}
+                feito={mes.depositos?.fundo}
+                onFeito={onMarcarDeposito ? (feito) => onMarcarDeposito("fundo", feito) : undefined}
                 somenteLeitura={somenteLeitura}
               />
               {fundo && fundo.proximo > 0.005 ? (
@@ -201,6 +193,24 @@ export function NotaMes({
                 ? `O sistema manda ${formatarMoeda(paraMeta)} para a meta.`
                 : "O que sobrar depois das contas, do cartão e dos aportes vai para a meta."}
             </p>
+            {paraMeta > 0.005 ? (
+              <ul>
+                <li>
+                  <div className={`nota-linha is-editavel ${mes.depositos?.meta ? "is-paga" : ""}`}>
+                    <input
+                      className="checkbox-pago shrink-0"
+                      type="checkbox"
+                      checked={Boolean(mes.depositos?.meta)}
+                      disabled={somenteLeitura || !onMarcarDeposito}
+                      aria-label="Depósito na meta feito"
+                      onChange={(evento) => onMarcarDeposito?.("meta", evento.target.checked)}
+                    />
+                    <span className="nota-nome">Depósito na meta</span>
+                    <span className="nota-valor money">{formatarMoeda(paraMeta)}</span>
+                  </div>
+                </li>
+              </ul>
+            ) : null}
             {dividasMeta.length > 0 ? (
               <ul>
                 {dividasMeta.map((meta) => (
@@ -223,10 +233,14 @@ export function NotaMes({
             atual={agora === "alttab"}
           >
             <ul>
-              <LinhaBotao
+              <LinhaValor
+                id="nota-alttab"
                 nome="Depósito na empresa"
                 valor={mes.alttabReal}
-                onClick={() => abrir({ tipo: "campo", campo: "alttabReal" })}
+                sugestao={alttabSugestao}
+                onChange={(valor) => onSalvarCampo("alttabReal", valor)}
+                feito={mes.depositos?.alttab}
+                onFeito={onMarcarDeposito ? (feito) => onMarcarDeposito("alttab", feito) : undefined}
                 somenteLeitura={somenteLeitura}
               />
             </ul>
@@ -234,6 +248,7 @@ export function NotaMes({
         </div>
       ) : (
         <div className="rito-corpo is-inicio">
+          {superficie === "inicio" || superficie === "entradas" ? (
           <Etapa
             id="rito-entrou"
             numero={1}
@@ -252,72 +267,106 @@ export function NotaMes({
               <p className="rito-vazio">
                 Cadastrem as fontes em{" "}
                 <Link className="underline" href="/entradas">
-                  Cadastros
+                  Fontes
                 </Link>{" "}
-                e lancem o valor aqui quando o dinheiro chegar.
+                abaixo e lancem o valor aqui quando o dinheiro chegar.
               </p>
             ) : (
               <>
-                {saldos.length > 0 ? (
-                  <ul>
-                    {saldos.map(({ item, indice }) => (
-                      <LinhaBotao
-                        key={`${item.tipo}-${indice}-${item.nome}`}
-                        nome={item.nome || "Sem nome"}
-                        valor={item.valor}
-                        onClick={() => abrir({ tipo: "entrada", indice })}
-                        somenteLeitura={somenteLeitura}
-                      />
-                    ))}
-                  </ul>
-                ) : null}
+                {(() => {
+                  const lista = saldos;
+                  return (
+                    <>
+                      {lista.length > 0 ? (
+                        <ul>
+                          {lista.map(({ item, indice }) => (
+                            <LinhaValor
+                              key={`${item.tipo}-${indice}-${item.nome}`}
+                              id={`nota-entrada-${indice}`}
+                              nome={item.nome || "Sem nome"}
+                              valor={item.valor}
+                              onChange={(valor) => onSalvarItem(indice, valor)}
+                              onRemover={onRemover ? () => onRemover(indice) : undefined}
+                              somenteLeitura={somenteLeitura}
+                            />
+                          ))}
+                        </ul>
+                      ) : null}
+                    </>
+                  );
+                })()}
                 {vales.length > 0 || outrosExtra.length > 0 ? (
                   <div className="rito-sub">
                     <p className="rito-sub-titulo">Vales</p>
-                    <ul>
-                      {[...vales, ...outrosExtra].map(({ item, indice }) => (
-                        <LinhaBotao
-                          key={`${item.tipo}-${indice}-${item.nome}`}
-                          nome={item.nome || "Sem nome"}
-                          valor={item.valor}
-                          detalhe={rotuloEntrada(item)}
-                          onClick={() => abrir({ tipo: "entrada", indice })}
-                          somenteLeitura={somenteLeitura}
-                        />
-                      ))}
-                    </ul>
+                    {(() => {
+                      const origem = [...vales, ...outrosExtra];
+                      const lista = origem;
+                      return (
+                        <>
+                          {lista.length > 0 ? (
+                            <ul>
+                              {lista.map(({ item, indice }) => (
+                                <LinhaValor
+                                  key={`${item.tipo}-${indice}-${item.nome}`}
+                                  id={`nota-vale-${indice}`}
+                                  nome={item.nome || "Sem nome"}
+                                  valor={item.valor}
+                                  detalhe={rotuloEntrada(item)}
+                                  onChange={(valor) => onSalvarItem(indice, valor)}
+                              onRemover={onRemover ? () => onRemover(indice) : undefined}
+                                  somenteLeitura={somenteLeitura}
+                                />
+                              ))}
+                            </ul>
+                          ) : null}
+                        </>
+                      );
+                    })()}
                   </div>
                 ) : null}
                 {rendimentos.length > 0 ? (
                   <div className="rito-sub">
                     <p className="rito-sub-titulo">Rendimento das contas e da meta</p>
-                    <ul>
-                      {rendimentos.map(({ item, indice }) => (
-                        <LinhaBotao
-                          key={`${item.tipo}-${indice}-${item.nome}`}
-                          nome={item.nome || "Sem nome"}
-                          valor={item.valor}
-                          onClick={() => abrir({ tipo: "entrada", indice })}
-                          somenteLeitura={somenteLeitura}
-                        />
-                      ))}
-                    </ul>
-                    <p className="rito-nota">
-                      {totais && totais.rendimento.total >= 0.005
-                        ? totais.rendimento.apertado
+                    {(() => {
+                      const lista = rendimentos;
+                      return (
+                        <>
+                          {lista.length > 0 ? (
+                            <ul>
+                              {lista.map(({ item, indice }) => (
+                                <LinhaValor
+                                  key={`${item.tipo}-${indice}-${item.nome}`}
+                                  id={`nota-rendimento-${indice}`}
+                                  nome={item.nome || "Sem nome"}
+                                  valor={item.valor}
+                                  onChange={(valor) => onSalvarItem(indice, valor)}
+                              onRemover={onRemover ? () => onRemover(indice) : undefined}
+                                  somenteLeitura={somenteLeitura}
+                                />
+                              ))}
+                            </ul>
+                          ) : null}
+                        </>
+                      );
+                    })()}
+                    {totais && totais.rendimento.total >= 0.005 ? (
+                      <p className="rito-nota">
+                        {totais.rendimento.apertado
                           ? `${formatarMoeda(totais.rendimento.paraContas)} nas contas. ${formatarMoeda(totais.rendimento.reinvestido)} reinvestido.`
-                          : `Reinvestido ${formatarMoeda(totais.rendimento.reinvestido)}. Se o mês apertar, o sistema usa nas contas.`
-                        : "Lancem o valor. Se o mês apertar, o sistema usa nas contas; senão, reinveste."}
-                    </p>
+                          : `Reinvestido ${formatarMoeda(totais.rendimento.reinvestido)}.`}
+                      </p>
+                    ) : null}
                   </div>
                 ) : null}
               </>
             )}
           </Etapa>
+          ) : null}
 
+          {superficie === "inicio" || superficie === "contas" ? (
           <Etapa
             id="rito-contas"
-            numero={2}
+            numero={superficie === "contas" ? 1 : 2}
             titulo="Contas"
             detalhe={
               pagamento.total === 0
@@ -333,131 +382,89 @@ export function NotaMes({
               )
             }
           >
-            {contas.length === 0 ? (
+            {contas.length === 0 && parcelasCartao.length === 0 ? (
               <p className="rito-vazio">
-                Contas que se repetem se cadastram em{" "}
-                <Link className="underline" href="/gastos">
-                  Cadastros
-                </Link>
-                . Extra só deste mês: Nova conta.
+                Contas que se repetem se cadastram abaixo. Extra só deste mês: Nova conta.
               </p>
             ) : (
-              <ul>
-                {contas.map(({ item, indice }) => (
-                  <LinhaConta
-                    key={`${item.tipo}-${indice}-${item.nome}`}
-                    item={item}
-                    indice={indice}
-                    onToggle={onToggle}
-                    onAbrir={() => abrir({ tipo: "conta", indice })}
-                    somenteLeitura={somenteLeitura}
-                  />
-                ))}
-              </ul>
+              <>
+                {(() => {
+                  const lista = contas;
+                  return (
+                    <>
+                      {lista.length > 0 || parcelasCartao.length > 0 ? (
+                        <ul>
+                          {lista.map(({ item, indice }) => (
+                            <LinhaConta
+                              key={`${item.tipo}-${indice}-${item.nome}`}
+                              item={item}
+                              indice={indice}
+                              onToggle={onToggle}
+                              onChange={(valor) => onSalvarConta(indice, valor, item.pago)}
+                              onRemover={
+                                onRemover && item.tipo !== "ANUAL" ? () => onRemover(indice) : undefined
+                              }
+                              onRenomear={
+                                onRenomear && item.tipo !== "ANUAL" ? (nome) => onRenomear(indice, nome) : undefined
+                              }
+                              onEditarAnual={
+                                item.tipo === "ANUAL" && item.contaAnualId
+                                  ? () => abrir({ tipo: "anual", id: item.contaAnualId as string })
+                                  : undefined
+                              }
+                              somenteLeitura={somenteLeitura}
+                            />
+                          ))}
+                          {parcelasCartao.map((parcela) => (
+                            <LinhaParcelaCartao
+                              key={`parcela-${parcela.nome}-${parcela.atual}-${parcela.total}`}
+                              parcela={parcela}
+                              competenciaMes={mes.competencia}
+                            />
+                          ))}
+                        </ul>
+                      ) : null}
+                    </>
+                  );
+                })()}
+              </>
             )}
             <div className="rito-sub" id="rito-feira">
-              <p className="rito-sub-titulo">Feira e gasolina</p>
-              <ul>
-                <LinhaBotao
-                  nome="Feira"
-                  valor={mes.feiraReal}
-                  onClick={() => abrir({ tipo: "campo", campo: "feiraReal" })}
-                  somenteLeitura={somenteLeitura}
-                />
-                <LinhaBotao
-                  nome="Gasolina"
-                  valor={mes.gasolinaReal}
-                  onClick={() => abrir({ tipo: "campo", campo: "gasolinaReal" })}
-                  somenteLeitura={somenteLeitura}
-                />
-              </ul>
+                <p className="rito-sub-titulo">Feira e gasolina</p>
+                <ul>
+                  <LinhaValor
+                    id="nota-feira"
+                    nome="Feira"
+                    valor={mes.feiraReal}
+                    onChange={(valor) => onSalvarCampo("feiraReal", valor)}
+                    somenteLeitura={somenteLeitura}
+                  />
+                  <LinhaValor
+                    id="nota-gasolina"
+                    nome="Gasolina"
+                    valor={mes.gasolinaReal}
+                    onChange={(valor) => onSalvarCampo("gasolinaReal", valor)}
+                    somenteLeitura={somenteLeitura}
+                  />
+                </ul>
             </div>
           </Etapa>
-
-          <Etapa
-            id="rito-cartao"
-            numero={3}
-            titulo="Cartão"
-            detalhe={cartaoTotal > 0.005 ? formatarMoeda(cartaoTotal) : "Sem fatura ainda"}
-            atual={agora === "cartao"}
-          >
-            {planoCartao && planoCartao.teto > 0.005 ? (
-              <p className={`mb-3 text-sm ${planoCartao.estoura ? "rito-aperto" : "text-mute"}`}>
-                {planoCartao.estoura
-                  ? `Fatura ${formatarMoeda(planoCartao.fatura)} passa do teto ${formatarMoeda(planoCartao.teto)} (o que sobrou depois das contas).`
-                  : `Depois das contas sobra ${formatarMoeda(planoCartao.teto)}. Ainda cabe ${formatarMoeda(planoCartao.cabe)} neste cartão.`}
-              </p>
-            ) : null}
-            <ul>
-              {recorrentesCartao.map((item) => (
-                <LinhaLink
-                  key={`fixo-${item.nome}`}
-                  nome={`${item.nome} · fixo`}
-                  valor={item.valor}
-                  href="/cartao?novo=fixo"
-                />
-              ))}
-              {parcelasCartao.map((parcela) => (
-                <LinhaLink
-                  key={`${parcela.nome}-${parcela.atual}`}
-                  nome={`${parcela.nome} ${parcela.atual}/${parcela.total}`}
-                  valor={parcela.valor}
-                  href="/cartao"
-                />
-              ))}
-              <LinhaBotao
-                nome={recorrentesCartao.length > 0 || parcelasCartao.length > 0 ? "Avulso no cartão" : "Fatura"}
-                valor={mes.cartaoReal}
-                onClick={() => abrir({ tipo: "campo", campo: "cartaoReal" })}
-                somenteLeitura={somenteLeitura}
-              />
-            </ul>
-          </Etapa>
+          ) : null}
         </div>
       )}
 
-      {editor?.tipo === "conta" ? (
-        <ModalValorConta
-          item={mes.itens[editor.indice]}
-          onClose={() => setEditor(null)}
-          onSalvar={(valor, pago) => {
-            onSalvarConta(editor.indice, valor, pago);
-            setEditor(null);
-          }}
-        />
-      ) : null}
-
-      {editor?.tipo === "entrada" ? (
-        <ModalValorEntrada
-          item={mes.itens[editor.indice]}
-          onClose={() => setEditor(null)}
-          onSalvar={(valor) => {
-            onSalvarItem(editor.indice, valor);
-            setEditor(null);
-          }}
-        />
-      ) : null}
-
-      {editor?.tipo === "campo" ? (
-        <ModalValorCampo
-          campo={editor.campo}
-          valor={valorInicialCampo(editor.campo, mes, totais)}
-          totais={totais}
-          onClose={() => setEditor(null)}
-          onSalvar={(valor) => {
-            onSalvarCampo(editor.campo, valor);
-            setEditor(null);
-          }}
-        />
-      ) : null}
-
-      {editor?.tipo === "nova" && onNovaConta ? (
+      {(editor?.tipo === "nova" || editor?.tipo === "anual") && onNovaConta ? (
         <ModalNovaConta
+          competencia={mes.competencia}
+          anualEditando={
+            editor.tipo === "anual" ? (contasAnuais.find((conta) => conta.id === editor.id) ?? null) : null
+          }
           onClose={() => setEditor(null)}
-          onSalvar={(nome, valor, pago) => {
-            onNovaConta(nome, valor, pago);
+          onSalvar={(nome, valor, pago, tipo) => {
+            onNovaConta(nome, valor, pago, tipo);
             setEditor(null);
           }}
+          onSalvouExterno={() => setEditor(null)}
         />
       ) : null}
 
@@ -469,6 +476,15 @@ export function NotaMes({
             setEditor(null);
           }}
         />
+      ) : null}
+
+      {removido && onDesfazer ? (
+        <div className="aviso-desfazer" role="status">
+          <span>“{removido.item.nome || "Conta"}” removida.</span>
+          <button type="button" className="btn-link" onClick={onDesfazer}>
+            Desfazer
+          </button>
+        </div>
       ) : null}
     </section>
   );
@@ -488,11 +504,15 @@ function etapaAtual(
     if (falta?.id === "reposicao") return "meta";
     return "meta";
   }
+  if (superficie === "entradas") {
+    return totais && totais.resumo.ganhou >= 0.005 ? null : "entrou";
+  }
+  if (superficie === "contas") {
+    return pagamento.total > 0 && pagamento.pagas < pagamento.total ? "contas" : null;
+  }
   if (!totais) return "entrou";
   if (totais.resumo.ganhou < 0.005) return "entrou";
   if (pagamento.total > 0 && pagamento.pagas < pagamento.total) return "contas";
-  const falta = totais.prioridade.find((etapa) => etapa.status === "falta");
-  if (falta?.id === "cartao") return "cartao";
   return null;
 }
 
@@ -523,25 +543,28 @@ function textoProximoPasso(
     }
     return "O que sobrar depois das contas e dos aportes vai para a meta.";
   }
-  if (agora === "entrou") return "Primeiro o que entrou. Abram a linha quando o dinheiro chegar.";
+  if (superficie === "entradas") {
+    return agora === "entrou" ? "Digite o que entrou na linha." : "Entradas do mês.";
+  }
+  if (superficie === "contas") {
+    if (agora === "contas") {
+      return pagamento.pagas === 0
+        ? "Digite as contas e marque as pagas."
+        : `Faltam ${pagamento.total - pagamento.pagas} ${
+            pagamento.total - pagamento.pagas === 1 ? "conta" : "contas"
+          }.`;
+    }
+    return "Contas do mês.";
+  }
+  if (agora === "entrou") return "Digite o que entrou na linha.";
   if (agora === "contas") {
     return pagamento.pagas === 0
-      ? "Agora as contas. Abram a linha para registrar o valor."
-      : `Ainda faltam ${pagamento.total - pagamento.pagas} ${
+      ? "Digite as contas e marque as pagas."
+      : `Faltam ${pagamento.total - pagamento.pagas} ${
           pagamento.total - pagamento.pagas === 1 ? "conta" : "contas"
-        }. Depois, o cartão.`;
+        }.`;
   }
-  if (agora === "cartao") {
-    const cartao = totais?.despesasVariaveis.cartao;
-    if (cartao?.estoura) {
-      return `A fatura passa do que sobrou depois das contas (${formatarMoeda(cartao.teto)}).`;
-    }
-    if (cartao && cartao.teto > 0.005) {
-      return `Contas pagas. O teto do cartão é ${formatarMoeda(cartao.teto)}. Ainda cabe ${formatarMoeda(cartao.cabe)}.`;
-    }
-    return "Contas pagas. Agora o cartão.";
-  }
-  return "Entradas, contas e cartão. Poupança, fundo, meta e Alttab ficam em Investimentos.";
+  return "Pronto. O saldo é o que entrou menos as pagas.";
 }
 
 function textoPlanoFundo(totais?: ResultadoMes) {
@@ -556,13 +579,6 @@ function textoPlanoFundo(totais?: ResultadoMes) {
     return `O fundo rendeu ${formatarMoeda(totais.proventoFundo)} neste mês. Continuam os R$ 50,00 + metade do rendimento neste fundo (${formatarMoeda(fundo.ajuste)}). A outra metade (${formatarMoeda(fundo.proximo)}) vai para o próximo investimento.`;
   }
   return `Enquanto o fundo não render R$ 100,00 por mês: R$ 50,00 + o rendimento inteiro. Sugestão deste mês: ${formatarMoeda(fundo.sugestao)}.`;
-}
-
-function valorInicialCampo(campo: CampoNota, mes: MesDTO, totais?: ResultadoMes) {
-  if (campo === "poupancaReal" && !mes.poupancaEditado) {
-    return totais?.investimentos.poupanca.sugestao ?? mes.poupancaReal;
-  }
-  return mes[campo];
 }
 
 function ehVale(item: ItemDTO) {
@@ -613,24 +629,51 @@ function Etapa({
   );
 }
 
+function BotaoRemover({ nome, onClick }: { nome: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className="btn-remover"
+      aria-label={`Remover ${nome}`}
+      title={`Remover ${nome}`}
+      onClick={onClick}
+    >
+      ✕
+    </button>
+  );
+}
+
 function LinhaConta({
   item,
   indice,
   onToggle,
-  onAbrir,
+  onChange,
+  onRemover,
+  onEditarAnual,
+  onRenomear,
   somenteLeitura,
 }: {
   item: ItemDTO;
   indice: number;
   onToggle: (indice: number, pago: boolean) => void;
-  onAbrir: () => void;
+  onChange: (valor: number) => void;
+  onRemover?: () => void;
+  onEditarAnual?: () => void;
+  onRenomear?: (nome: string) => void;
   somenteLeitura: boolean;
 }) {
   const id = `nota-pago-${item.tipo}-${indice}`;
-  const zerado = Math.abs(item.valor) < 0.005;
+  const [renomeando, setRenomeando] = useState(false);
+  const [rascunho, setRascunho] = useState(item.nome);
+  const concluirNome = () => {
+    setRenomeando(false);
+    const limpo = rascunho.trim();
+    if (limpo && limpo !== item.nome) onRenomear?.(limpo);
+    else setRascunho(item.nome);
+  };
   return (
     <li>
-      <div className={`nota-linha ${item.pago ? "is-paga" : ""}`}>
+      <div className={`nota-linha is-editavel ${item.pago ? "is-paga" : ""}`}>
         <input
           id={id}
           className="checkbox-pago shrink-0"
@@ -641,63 +684,175 @@ function LinhaConta({
           aria-label={`${item.nome || "Conta"} paga`}
           onChange={(evento) => onToggle(indice, evento.target.checked)}
         />
-        <button
-          type="button"
-          className={`nota-abrir ${somenteLeitura ? "" : "is-clicavel"}`}
-          onClick={onAbrir}
-          disabled={somenteLeitura}
-        >
-          <span className="nota-nome">
-            {item.nome || "Sem nome"}
-            {item.tipo === "EXTRA_MES" ? <span className="nota-tag">extra</span> : null}
-            {item.tipo === "ANUAL" ? <span className="nota-tag">anual</span> : null}
-          </span>
-          <span className={`nota-valor money ${zerado ? "is-vazio" : ""}`}>
-            {zerado ? "—" : formatarMoeda(item.valor)}
-          </span>
-        </button>
+        <span className="nota-nome">
+          {renomeando ? (
+            <input
+              className="nota-nome-input"
+              aria-label={`Novo nome de ${item.nome}`}
+              value={rascunho}
+              autoFocus
+              onChange={(evento) => setRascunho(evento.target.value)}
+              onBlur={concluirNome}
+              onKeyDown={(evento) => {
+                if (evento.key === "Enter") evento.currentTarget.blur();
+                if (evento.key === "Escape") {
+                  setRascunho(item.nome);
+                  setRenomeando(false);
+                }
+              }}
+            />
+          ) : onRenomear && !somenteLeitura ? (
+            <button
+              type="button"
+              className="nota-nome-botao"
+              title="Renomear"
+              onClick={() => {
+                setRascunho(item.nome);
+                setRenomeando(true);
+              }}
+            >
+              {item.nome || "Sem nome"}
+            </button>
+          ) : (
+            item.nome || "Sem nome"
+          )}
+          {item.tipo === "EXTRA_MES" ? <span className="nota-tag">extra</span> : null}
+          {item.tipo === "ANUAL" ? <span className="nota-tag">anual</span> : null}
+        </span>
+        <div className="nota-campo">
+          <CampoMoeda
+            id={`nota-conta-valor-${indice}`}
+            label={`Valor de ${item.nome || "conta"}`}
+            value={item.valor}
+            onChange={onChange}
+            rotuloVisivel={false}
+            compact
+            disabled={somenteLeitura}
+          />
+        </div>
+        {onEditarAnual && !somenteLeitura ? (
+          <button
+            type="button"
+            className="btn-link text-xs shrink-0"
+            aria-label={`Editar conta anual ${item.nome}`}
+            onClick={onEditarAnual}
+          >
+            editar
+          </button>
+        ) : null}
+        {onRemover && !somenteLeitura ? <BotaoRemover nome={item.nome || "conta"} onClick={onRemover} /> : null}
       </div>
     </li>
   );
 }
 
-function LinhaBotao({
+/** Lembrete de parcela do cartão: só exibe (valor na fatura). */
+function LinhaParcelaCartao({
+  parcela,
+  competenciaMes,
+}: {
+  parcela: ParcelaCartao;
+  competenciaMes: string;
+}) {
+  return (
+    <li>
+      <div className="nota-linha is-parcela-cartao">
+        <span className="nota-nome">
+          <Link
+            className="nota-parcela-link"
+            href={`/cartao?mes=${encodeURIComponent(competenciaMes)}`}
+          >
+            {parcela.nome || "Parcela"}
+          </Link>
+          <span className="nota-tag is-cartao">cartão</span>
+          <span className="nota-tag is-prazo" aria-label={`Parcela ${parcela.atual} de ${parcela.total}`}>
+            {parcela.atual}/{parcela.total}
+          </span>
+        </span>
+        <span className="nota-valor money">{formatarMoeda(parcela.valor)}</span>
+      </div>
+    </li>
+  );
+}
+
+function LinhaValor({
+  id,
   nome,
   valor,
   detalhe,
-  onClick,
+  sugestao,
+  onChange,
+  onRemover,
+  feito,
+  onFeito,
   somenteLeitura,
 }: {
+  id: string;
   nome: string;
   valor: number;
   detalhe?: string;
-  onClick: () => void;
+  sugestao?: number;
+  onChange: (valor: number) => void;
+  onRemover?: () => void;
+  feito?: boolean;
+  onFeito?: (feito: boolean) => void;
   somenteLeitura: boolean;
 }) {
-  const vazio = Math.abs(valor) < 0.005;
+  const mostraSugestao =
+    !somenteLeitura &&
+    sugestao != null &&
+    sugestao > 0.005 &&
+    Math.abs(valor - sugestao) > 0.005;
+
   return (
     <li>
-      <button
-        type="button"
-        className={`nota-linha ${somenteLeitura ? "" : "is-clicavel"}`}
-        onClick={onClick}
-        disabled={somenteLeitura}
-      >
-        <span className="nota-marca" aria-hidden="true" />
-        <span className="nota-nome">
-          {nome}
-          {detalhe ? <span className="nota-tag">{detalhe}</span> : null}
-        </span>
-        <span className={`nota-valor money ${vazio ? "is-vazio" : ""}`}>
-          {vazio ? "—" : formatarMoeda(valor)}
-        </span>
-      </button>
+      <div className={`nota-linha is-editavel ${feito ? "is-paga" : ""}`}>
+        {onFeito ? (
+          <input
+            className="checkbox-pago shrink-0"
+            type="checkbox"
+            checked={Boolean(feito)}
+            disabled={somenteLeitura}
+            aria-label={`${nome} feito`}
+            onChange={(evento) => onFeito(evento.target.checked)}
+          />
+        ) : (
+          <span className="nota-marca" aria-hidden="true" />
+        )}
+        <div className="nota-linha-corpo">
+          <span className="nota-nome">
+            {nome}
+            {detalhe ? <span className="nota-tag">{detalhe}</span> : null}
+          </span>
+          {mostraSugestao ? (
+            <button
+              className="btn-link nota-sugestao"
+              type="button"
+              onClick={() => onChange(sugestao)}
+            >
+              Usar sugestão
+            </button>
+          ) : null}
+        </div>
+        <div className="nota-campo">
+          <CampoMoeda
+            id={id}
+            label={`Valor de ${nome}`}
+            value={valor}
+            onChange={onChange}
+            rotuloVisivel={false}
+            compact
+            disabled={somenteLeitura}
+          />
+        </div>
+        {onRemover && !somenteLeitura ? <BotaoRemover nome={nome} onClick={onRemover} /> : null}
+      </div>
     </li>
   );
 }
 
 function LinhaLink({ nome, valor, href }: { nome: string; valor: number; href: string }) {
-  const vazio = Math.abs(valor) < 0.005;
+  const vazio = !temValor(valor);
   return (
     <li>
       <Link href={href} className="nota-linha is-clicavel">
@@ -712,7 +867,7 @@ function LinhaLink({ nome, valor, href }: { nome: string; valor: number; href: s
 }
 
 function LinhaTexto({ nome, valor, detalhe }: { nome: string; valor: number; detalhe?: string }) {
-  const vazio = Math.abs(valor) < 0.005;
+  const vazio = !temValor(valor);
   return (
     <li>
       <div className="nota-linha">
@@ -729,153 +884,264 @@ function LinhaTexto({ nome, valor, detalhe }: { nome: string; valor: number; det
   );
 }
 
-function ModalValorConta({
-  item,
-  onClose,
-  onSalvar,
-}: {
-  item: ItemDTO;
-  onClose: () => void;
-  onSalvar: (valor: number, pago: boolean) => void;
-}) {
-  const [valor, setValor] = useState(item.valor);
-  const [pago, setPago] = useState(item.pago || Math.abs(item.valor) < 0.005);
-  return (
-    <Modal
-      aberto
-      titulo={item.nome || "Conta"}
-      descricao="O valor da conta que chegou. Marquem se já pagaram — o sistema ajusta o que sobra."
-      onClose={onClose}
-    >
-      <FormularioModal
-        onSubmit={() => onSalvar(valor, pago)}
-        acoes={<AcoesCadastro pendente={false} onVoltar={onClose} salvar="Registrar" />}
-      >
-        <CampoMoeda id="nota-valor-conta" label="Valor" value={valor} onChange={setValor} autoFocus />
-        <label className="nota-pago-campo" htmlFor="nota-modal-pago">
-          <input
-            id="nota-modal-pago"
-            className="checkbox-pago shrink-0"
-            type="checkbox"
-            checked={pago}
-            onChange={(evento) => setPago(evento.target.checked)}
-          />
-          <span>Já pagamos</span>
-        </label>
-      </FormularioModal>
-    </Modal>
-  );
-}
+type TipoNovaConta = "mes" | "fixa" | "anual" | "cartao";
 
-function ModalValorEntrada({
-  item,
-  onClose,
-  onSalvar,
-}: {
-  item: ItemDTO;
-  onClose: () => void;
-  onSalvar: (valor: number) => void;
-}) {
-  const [valor, setValor] = useState(item.valor);
-  return (
-    <Modal
-      aberto
-      titulo={item.nome || "Entrada"}
-      descricao={
-        ehProvento(item)
-          ? "Rendimento deste mês. Se o mês apertar, o sistema usa nas contas; senão, reinveste."
-          : "O que entrou nesta fonte neste mês."
-      }
-      onClose={onClose}
-    >
-      <FormularioModal
-        onSubmit={() => onSalvar(valor)}
-        acoes={<AcoesCadastro pendente={false} onVoltar={onClose} salvar="Registrar" />}
-      >
-        <CampoMoeda id="nota-valor-entrada" label="Valor" value={valor} onChange={setValor} autoFocus />
-      </FormularioModal>
-    </Modal>
-  );
-}
+const OPCOES_TIPO: { id: TipoNovaConta; rotulo: string; detalhe: string }[] = [
+  { id: "mes", rotulo: "Só este mês", detalhe: "Uma conta avulsa." },
+  { id: "fixa", rotulo: "Todo mês", detalhe: "Fixa: volta nos próximos meses." },
+  { id: "anual", rotulo: "Anual", detalhe: "IPTU, IPVA: junta um pedaço por mês." },
+  { id: "cartao", rotulo: "Cartão", detalhe: "Entra na fatura, com ou sem parcelas." },
+];
 
-function ModalValorCampo({
-  campo,
-  valor: inicial,
-  totais,
+export function ModalNovaConta({
+  competencia,
+  anualEditando,
+  inicioCartaoPadrao,
   onClose,
   onSalvar,
+  onSalvouExterno,
 }: {
-  campo: CampoNota;
-  valor: number;
-  totais?: ResultadoMes;
+  competencia: string;
+  inicioCartaoPadrao?: string;
+  anualEditando: ContaAnualDTO | null;
   onClose: () => void;
-  onSalvar: (valor: number) => void;
+  onSalvar: (nome: string, valor: number, pago: boolean, tipo: "EXTRA_MES" | "CONTA") => void;
+  onSalvouExterno: () => void;
 }) {
-  const [valor, setValor] = useState(inicial);
-  const meta = CAMPOS[campo];
-  return (
-    <Modal aberto titulo={meta.nome} descricao={meta.hint(totais)} onClose={onClose}>
-      <FormularioModal
-        onSubmit={() => onSalvar(valor)}
-        acoes={<AcoesCadastro pendente={false} onVoltar={onClose} salvar="Registrar" />}
-      >
-        <CampoMoeda id={`nota-valor-${campo}`} label="Valor" value={valor} onChange={setValor} autoFocus />
-      </FormularioModal>
-    </Modal>
-  );
-}
-
-function ModalNovaConta({
-  onClose,
-  onSalvar,
-}: {
-  onClose: () => void;
-  onSalvar: (nome: string, valor: number, pago: boolean) => void;
-}) {
-  const [nome, setNome] = useState("");
-  const [valor, setValor] = useState(0);
+  const router = useRouter();
+  const [pendente, start] = useTransition();
+  const editandoAnual = anualEditando != null;
+  const mesCompetencia = Number(competencia.slice(5));
+  const [tipo, setTipo] = useState<TipoNovaConta>(editandoAnual ? "anual" : "mes");
+  const [nome, setNome] = useState(anualEditando?.nome ?? "");
+  const [valor, setValor] = useState(anualEditando?.valor ?? 0);
   const [pago, setPago] = useState(true);
+  const [parcelado, setParcelado] = useState(false);
+  const [parcelas, setParcelas] = useState(2);
+  const [inicio, setInicio] = useState(inicioCartaoPadrao ?? competencia);
+  const [mesCobranca, setMesCobranca] = useState(anualEditando?.mes ?? mesCompetencia);
+  const [dia, setDia] = useState(anualEditando?.dia ?? 10);
+  const [mesesJuntar, setMesesJuntar] = useState<number | null>(anualEditando?.parcelas ?? null);
+  const [confirmarExclusao, setConfirmarExclusao] = useState(false);
   const [erro, setErro] = useState("");
+
+  const reserva = sugerirReservaMensal(valor, mesCobranca, competencia);
+  const juntar = mesesJuntar ?? reserva.meses;
+  const nParcelas = tipo === "cartao" && parcelado ? parcelas : 1;
+
+  const resumo = (() => {
+    const rotulo = nome.trim() || "Conta";
+    if (valor <= 0) {
+      return tipo === "cartao"
+        ? "Informe o valor e, se foi parcelado, em quantas vezes."
+        : tipo === "anual"
+          ? "Informe o valor do ano e quando cobra."
+          : "Informe o nome e o valor.";
+    }
+    if (tipo === "mes") return `${rotulo} · ${formatarMoeda(valor)} só neste mês`;
+    if (tipo === "fixa") return `${rotulo} · ${formatarMoeda(valor)} todo mês`;
+    if (tipo === "anual") {
+      return `${rotulo} · ${formatarMoeda(valor)} no ano · ${juntar}x de ${formatarMoeda(valorDaParcela(valor, juntar, 0))}`;
+    }
+    return nParcelas > 1
+      ? `${rotulo} · ${nParcelas}x de ${formatarMoeda(valorDaParcela(valor, nParcelas, 0))} a partir de ${formatarCompetenciaCurta(inicio)}`
+      : `${rotulo} · ${formatarMoeda(valor)} no cartão em ${formatarCompetenciaCurta(inicio)}`;
+  })();
+
+  const concluir = (acao: () => Promise<{ ok: boolean; erro?: string }>) => {
+    start(async () => {
+      const resposta = await acao();
+      if (!resposta.ok) {
+        setErro(resposta.erro ?? "Não foi possível salvar.");
+        return;
+      }
+      onSalvouExterno();
+      router.refresh();
+    });
+  };
+
+  const enviar = () => {
+    if (!nome.trim()) {
+      setErro("Dê um nome para a conta.");
+      return;
+    }
+    if (tipo === "mes" || tipo === "fixa") {
+      onSalvar(nome, valor, pago, tipo === "fixa" ? "CONTA" : "EXTRA_MES");
+      return;
+    }
+    if (valor <= 0) {
+      setErro("Informe o valor.");
+      return;
+    }
+    if (tipo === "anual") {
+      concluir(() =>
+        salvarContaAnualAction({
+          id: anualEditando?.id,
+          nome: nome.trim(),
+          valor,
+          dia,
+          mes: mesCobranca,
+          parcelas: juntar,
+          lado: anualEditando?.lado ?? "CASA",
+          banco: anualEditando?.banco ?? "",
+          chavePix: anualEditando?.chavePix ?? "",
+        }),
+      );
+      return;
+    }
+    concluir(() =>
+      salvarCompraCartaoAction({
+        nome: nome.trim(),
+        valorTotal: valor,
+        parcelas: nParcelas,
+        competenciaInicio: inicio,
+      }),
+    );
+  };
+
+  const rotuloSalvar =
+    tipo === "cartao" ? "Salvar compra" : tipo === "anual" ? "Salvar conta anual" : "Registrar";
+
   return (
     <Modal
       aberto
-      titulo="Nova conta"
-      descricao="Entra só neste mês: Magazine, IPTV, uma extra. Conta que se repete se cadastra em Cadastros."
+      titulo={editandoAnual ? "Editar conta anual" : "Nova conta"}
+      descricao={editandoAnual ? "Ajuste o valor ou quando cobra." : "Escolha de que tipo é a conta."}
       onClose={onClose}
     >
       <FormularioModal
+        resumo={resumo}
         erro={erro}
-        onSubmit={() => {
-          if (!nome.trim()) {
-            setErro("Dê um nome para a conta.");
-            return;
-          }
-          onSalvar(nome, valor, pago);
-        }}
-        acoes={<AcoesCadastro pendente={false} onVoltar={onClose} salvar="Registrar" />}
+        onSubmit={enviar}
+        acoes={
+          <AcoesCadastro
+            pendente={pendente}
+            podeExcluir={editandoAnual}
+            confirmarExclusao={confirmarExclusao}
+            onPedirExclusao={() => setConfirmarExclusao(true)}
+            onCancelarExclusao={() => setConfirmarExclusao(false)}
+            onExcluir={() => concluir(() => excluirContaAnualAction(anualEditando?.id ?? ""))}
+            onVoltar={onClose}
+            salvar={rotuloSalvar}
+            excluir="Remover conta anual"
+          />
+        }
       >
+        {editandoAnual ? null : (
+          <fieldset className="tipo-conta" aria-label="Tipo da conta">
+            {OPCOES_TIPO.map((opcao) => (
+              <label key={opcao.id} className={`tipo-conta-opcao ${tipo === opcao.id ? "is-ativo" : ""}`}>
+                <input
+                  type="radio"
+                  name="tipo-nova-conta"
+                  value={opcao.id}
+                  checked={tipo === opcao.id}
+                  onChange={() => {
+                    setTipo(opcao.id);
+                    setErro("");
+                  }}
+                />
+                <span className="tipo-conta-rotulo">{opcao.rotulo}</span>
+                <span className="tipo-conta-detalhe">{opcao.detalhe}</span>
+              </label>
+            ))}
+          </fieldset>
+        )}
         <CampoTexto
           id="nota-nova-nome"
-          label="Nome"
+          label={tipo === "cartao" ? "O que foi comprado" : "Nome"}
           value={nome}
           onChange={(proximo) => {
             setNome(proximo);
             setErro("");
           }}
-          placeholder="Ex.: IPTV, Magazine Luiza…"
+          placeholder={tipo === "anual" ? "Ex.: IPTU, IPVA, domínio…" : "Ex.: IPTV, Magazine Luiza…"}
           autoFocus
         />
-        <CampoMoeda id="nota-nova-valor" label="Valor" value={valor} onChange={setValor} />
-        <label className="nota-pago-campo" htmlFor="nota-nova-pago">
-          <input
-            id="nota-nova-pago"
-            className="checkbox-pago shrink-0"
-            type="checkbox"
-            checked={pago}
-            onChange={(evento) => setPago(evento.target.checked)}
-          />
-          <span>Já pagamos</span>
-        </label>
+        {tipo === "cartao" ? (
+          <>
+            <label className="nota-pago-campo" htmlFor="nota-nova-parcelado">
+              <input
+                id="nota-nova-parcelado"
+                className="checkbox-pago shrink-0"
+                type="checkbox"
+                checked={parcelado}
+                onChange={(evento) => setParcelado(evento.target.checked)}
+              />
+              <span>Foi parcelado</span>
+            </label>
+            <CampoLinha>
+              <CampoMoeda
+                id="nota-nova-valor"
+                label={parcelado ? "Valor total" : "Valor"}
+                value={valor}
+                onChange={setValor}
+              />
+              {parcelado ? (
+                <CampoPassos
+                  id="nota-nova-parcelas"
+                  label="Parcelas"
+                  value={parcelas}
+                  min={2}
+                  max={48}
+                  onChange={setParcelas}
+                  detalhe={valor > 0 ? `${parcelas}x de ${formatarMoeda(valorDaParcela(valor, parcelas, 0))}` : undefined}
+                />
+              ) : null}
+            </CampoLinha>
+            <CampoMes
+              id="nota-nova-inicio"
+              label={parcelado ? "Primeira parcela" : "Mês da fatura"}
+              value={inicio}
+              onChange={setInicio}
+            />
+          </>
+        ) : tipo === "anual" ? (
+          <>
+            <CampoMoeda id="nota-nova-valor" label="Valor no ano" value={valor} onChange={setValor} />
+            <CampoLinha>
+              <CampoSelect
+                id="nota-anual-mes"
+                label="Mês da cobrança"
+                value={String(mesCobranca)}
+                onChange={(proximo) => {
+                  setMesCobranca(Number(proximo));
+                  setMesesJuntar(null);
+                }}
+              >
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                  <option key={m} value={m}>
+                    {formatarMesCalendario(m)}
+                  </option>
+                ))}
+              </CampoSelect>
+              <CampoPassos id="nota-anual-dia" label="Dia" value={dia} min={1} max={31} onChange={setDia} />
+            </CampoLinha>
+            <CampoPassos
+              id="nota-anual-meses"
+              label="Meses para juntar"
+              value={juntar}
+              min={1}
+              max={12}
+              onChange={setMesesJuntar}
+              detalhe={valor > 0 ? `${juntar}x de ${formatarMoeda(valorDaParcela(valor, juntar, 0))}` : undefined}
+            />
+          </>
+        ) : (
+          <>
+            <CampoMoeda id="nota-nova-valor" label="Valor" value={valor} onChange={setValor} />
+            <label className="nota-pago-campo" htmlFor="nota-nova-pago">
+              <input
+                id="nota-nova-pago"
+                className="checkbox-pago shrink-0"
+                type="checkbox"
+                checked={pago}
+                onChange={(evento) => setPago(evento.target.checked)}
+              />
+              <span>Já pagamos</span>
+            </label>
+          </>
+        )}
       </FormularioModal>
     </Modal>
   );

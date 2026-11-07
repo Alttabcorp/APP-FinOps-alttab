@@ -43,11 +43,11 @@ type RascunhoFixo = {
   valor: number;
 };
 
-const rascunhoVazio = (): Rascunho => ({
+const rascunhoVazio = (competenciaInicio: string = competenciaAtual()): Rascunho => ({
   nome: "",
   valorTotal: 0,
   parcelas: 12,
-  competenciaInicio: competenciaAtual(),
+  competenciaInicio,
 });
 
 const rascunhoFixoVazio = (): RascunhoFixo => ({
@@ -59,16 +59,22 @@ type Props = {
   compras: CompraCartaoDTO[];
   recorrentes: RecorrenteCartaoDTO[];
   teto?: number;
+  /** Mês da primeira parcela de uma compra nova (depende do fechamento da fatura). */
+  competenciaInicioPadrao?: string;
   abrirNovo?: boolean;
   abrirFixo?: boolean;
+  /** Sem faixa KPI duplicada (ex.: dentro de modal). */
+  embutido?: boolean;
 };
 
 export function PainelCartao({
   compras,
   recorrentes,
   teto = 0,
+  competenciaInicioPadrao,
   abrirNovo = false,
   abrirFixo = false,
+  embutido = false,
 }: Props) {
   const router = useRouter();
   const [editor, setEditor] = useState<Rascunho | null>(null);
@@ -93,7 +99,7 @@ export function PainelCartao({
     if (!abrirNovo) return;
     setErro("");
     setConfirmarExclusao(false);
-    setEditor(rascunhoVazio());
+    setEditor(rascunhoVazio(competenciaInicioPadrao));
   }, [abrirNovo, abrirFixo]);
 
   const fechar = () => {
@@ -164,31 +170,35 @@ export function PainelCartao({
         {status}
       </p>
 
-      <dl className="rito-faixa">
-        <div>
-          <dt>Fatura de {formatarNomeMes(mesAtual)}</dt>
-          <dd className={`amount ${teto > 0.005 && fatura > teto + 0.005 ? "text-outflow" : ""}`}>
-            {formatarMoeda(fatura)}
-          </dd>
-        </div>
-        <div>
-          <dt>Pode pagar neste mês</dt>
-          <dd className="amount">{formatarMoeda(teto)}</dd>
-        </div>
-        <div>
-          <dt>Ainda cabe</dt>
-          <dd className={`amount ${disponivel > 0.005 ? "text-inflow" : "text-mute"}`}>
-            {formatarMoeda(disponivel)}
-          </dd>
-        </div>
-      </dl>
-      <p className="mt-3 text-sm text-mute">
-        Depois das contas, o que sobra é o teto do cartão. Gastos fixos e parcelas já entram na fatura.
-      </p>
-      {teto > 0.005 && fatura > teto + 0.005 ? (
-        <p className="rito-aperto mt-3">
-          A fatura passa do que sobrou depois das contas. Não gastem mais neste cartão neste mês.
-        </p>
+      {!embutido ? (
+        <>
+          <dl className="rito-faixa">
+            <div>
+              <dt>Fatura de {formatarNomeMes(mesAtual)}</dt>
+              <dd className={`amount ${teto > 0.005 && fatura > teto + 0.005 ? "text-outflow" : ""}`}>
+                {formatarMoeda(fatura)}
+              </dd>
+            </div>
+            <div>
+              <dt>Pode pagar neste mês</dt>
+              <dd className="amount">{formatarMoeda(teto)}</dd>
+            </div>
+            <div>
+              <dt>Ainda cabe</dt>
+              <dd className={`amount ${disponivel > 0.005 ? "text-inflow" : "text-mute"}`}>
+                {formatarMoeda(disponivel)}
+              </dd>
+            </div>
+          </dl>
+          <p className="mt-3 text-sm text-mute">
+            Depois das contas, o que sobra é o teto do cartão. Gastos fixos e parcelas já entram na fatura.
+          </p>
+          {teto > 0.005 && fatura > teto + 0.005 ? (
+            <p className="rito-aperto mt-3">
+              A fatura passa do que sobrou depois das contas. Não gastem mais neste cartão neste mês.
+            </p>
+          ) : null}
+        </>
       ) : null}
 
       <Bloco
@@ -250,7 +260,7 @@ export function PainelCartao({
             onClick={() => {
               setErro("");
               setConfirmarExclusao(false);
-              setEditor(rascunhoVazio());
+              setEditor(rascunhoVazio(competenciaInicioPadrao));
             }}
           >
             Cadastrar compra

@@ -1,40 +1,45 @@
-import { CabecaPagina } from "@/components/cabeca-pagina";
-import { NavCadastros } from "@/components/nav-cadastros";
-import { PainelCartao } from "@/components/painel-cartao";
-import { carregarFolha } from "@/lib/application/carregar-folha";
+import { notFound } from "next/navigation";
+import { PainelCartaoPagina } from "@/components/painel-cartao-pagina";
 import { listarComprasCartao, listarRecorrentesCartao } from "@/lib/application/cartao-service";
-import { competenciaAtual } from "@/lib/domain/financeiro/competencia";
+import { carregarFolha } from "@/lib/application/carregar-folha";
+import {
+  competenciaDaFaturaHoje,
+  listarLancamentos,
+  obterDiaFechamentoCartao,
+} from "@/lib/application/lancamento-service";
+import { competenciaAtual, isCompetencia } from "@/lib/domain/financeiro/competencia";
 
 export const dynamic = "force-dynamic";
 
-type Props = {
-  searchParams: Promise<{ novo?: string }>;
-};
+type Props = { searchParams: Promise<{ mes?: string }> };
 
 export default async function PaginaCartao({ searchParams }: Props) {
-  const { novo } = await searchParams;
-  const [compras, recorrentes, folha] = await Promise.all([
+  const { mes } = await searchParams;
+  const competencia = mes && isCompetencia(mes) ? mes : competenciaAtual();
+  const folha = await carregarFolha(competencia);
+  if (!folha) notFound();
+
+  const [compras, recorrentes, lancamentos, faturaHoje, diaFechamento] = await Promise.all([
     listarComprasCartao(),
     listarRecorrentesCartao(),
-    carregarFolha(competenciaAtual()),
+    listarLancamentos([competencia]),
+    competenciaDaFaturaHoje(),
+    obterDiaFechamentoCartao(),
   ]);
+  const cartao = folha.resultado.despesasVariaveis.cartao;
 
   return (
-    <main id="conteudo" className="pagina">
-      <NavCadastros />
-      <CabecaPagina
-        titulo="Cartão"
-        nota="Gasto fixo e parcelas entram na fatura. O teto é o que sobra depois das contas."
+    <main id="conteudo">
+      <PainelCartaoPagina
+        competencia={competencia}
+        mes={folha.dto}
+        teto={cartao.teto}
+        compras={compras}
+        recorrentes={recorrentes}
+        lancamentos={lancamentos.filter((item) => item.categoria === "cartao")}
+        faturaHoje={faturaHoje}
+        diaFechamento={diaFechamento}
       />
-      <div className="mt-6">
-        <PainelCartao
-          compras={compras}
-          recorrentes={recorrentes}
-          teto={folha?.resultado.despesasVariaveis.cartao.teto ?? 0}
-          abrirNovo={novo === "1"}
-          abrirFixo={novo === "fixo"}
-        />
-      </div>
     </main>
   );
 }

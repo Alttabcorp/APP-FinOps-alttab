@@ -1,12 +1,10 @@
-import { PaginaFolhaMes } from "@/components/pagina-folha-mes";
+import { redirect } from "next/navigation";
+import { isCompetencia } from "@/lib/domain/financeiro/competencia";
 
-export const dynamic = "force-dynamic";
+type Props = { params: Promise<{ competencia: string }> };
 
-type Props = {
-  params: Promise<{ competencia: string }>;
-};
-
+/** A antiga página "Detalhes do mês" foi substituída pelas páginas de ganhos, gastos, cartão e objetivos. */
 export default async function PaginaMes({ params }: Props) {
   const { competencia } = await params;
-  return <PaginaFolhaMes competencia={competencia} aba="visao" />;
+  redirect(isCompetencia(competencia) ? `/?mes=${competencia}` : "/");
 }

@@ -88,6 +88,7 @@ export const excluirContaAnual = async (id: string) => {
   const existente = await prisma.contaAnual.findUnique({ where: { id } });
   if (!existente) throw new Error("Conta anual não encontrada.");
   await prisma.contaAnual.delete({ where: { id } });
+  await sincronizarMesesAbertos();
 };
 
 export const sincronizarContasAnuaisDoMes = async (mesId: string) => {

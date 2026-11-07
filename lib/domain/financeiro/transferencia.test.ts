@@ -81,8 +81,9 @@ describe("roteiro de transferência", () => {
       investimentos: { fundo: 0, alttab: 0, poupanca: 0, poupancaEditado: false },
     });
     const linhas = montarRoteiroTransferencia(resultado, destinos());
-    quase(linhas.find((linha) => linha.id === "fundo")?.valor ?? 0, 50);
-    quase(linhas.find((linha) => linha.id === "alttab")?.valor ?? 0, 100);
+    // 4000 - 400 (poupança) = 3600 -> 1200 para cada um.
+    quase(linhas.find((linha) => linha.id === "fundo")?.valor ?? 0, 1200);
+    quase(linhas.find((linha) => linha.id === "alttab")?.valor ?? 0, 1200);
     expect(linhas.find((linha) => linha.id === "fundo")?.destino).toBe("Nubank Glaymar");
     expect(linhas.find((linha) => linha.id === "alttab")?.destino).toBe("Caixinha Alttabcorp");
   });
@@ -136,7 +137,7 @@ describe("roteiro de transferência", () => {
     expect(linhas.find((linha) => linha.id === "poupanca")).toBeUndefined();
     expect(linhas.find((linha) => linha.id === "anual:ipva")).toBeUndefined();
     expect(linhas.find((linha) => linha.id === "alttab")?.chavePix).toBe("alttab@nubank");
-    expect(linhas.find((linha) => linha.id === "fundo")?.valor).toBeCloseTo(50, 2);
+    expect(linhas.find((linha) => linha.id === "fundo")?.valor).toBeCloseTo(600, 2);
   });
 
   it("separa só os depósitos de investimento para o checklist", () => {

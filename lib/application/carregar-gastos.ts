@@ -1,7 +1,9 @@
 import { listarComprasCartao } from "@/lib/application/cartao-service";
+import { listarContasAnuais } from "@/lib/application/anual-service";
 import { carregarFolha } from "@/lib/application/carregar-folha";
 import { mesParaDto } from "@/lib/application/mes-mapper";
 import { listarMesesRecentes } from "@/lib/application/mes-service";
+import { alertasDoMes } from "@/lib/domain/financeiro/alertas";
 import { faturaDoMes, parcelasDoMes } from "@/lib/domain/financeiro/cartao";
 import { competenciaAtual, isCompetencia } from "@/lib/domain/financeiro/competencia";
 import { analisarGastos, type EntradaGastosMes } from "@/lib/domain/financeiro/gasto";
@@ -23,10 +25,11 @@ const entradaDoMes = (
 
 export async function carregarGastos(competenciaPedido?: string) {
   const competencia = competenciaPedido && isCompetencia(competenciaPedido) ? competenciaPedido : competenciaAtual();
-  const [folha, compras, meses] = await Promise.all([
+  const [folha, compras, meses, contasAnuais] = await Promise.all([
     carregarFolha(competencia),
     listarComprasCartao(),
     listarMesesRecentes(6),
+    listarContasAnuais(),
   ]);
   if (!folha) return null;
 
@@ -51,6 +54,7 @@ export async function carregarGastos(competenciaPedido?: string) {
 
   return {
     competencia,
+    contasAnuais,
     dto: folha.dto,
     resultado: folha.resultado,
     parcelasCartao: folha.parcelasCartao,
@@ -58,6 +62,18 @@ export async function carregarGastos(competenciaPedido?: string) {
     gastoPessoalMes: folha.gastoPessoalMes,
     reposicaoMeta: folha.reposicaoMeta,
     cartaoFixo: folha.cartaoFixo,
+    resumoAnterior: folha.resumoAnterior,
+    alertas: alertasDoMes({
+      competencia,
+      resultado: folha.resultado,
+      parcelas: folha.parcelasCartao,
+    }).filter(
+      (a) =>
+        a.id === "mes-negativo" ||
+        a.id === "feira-acima" ||
+        a.id === "gasolina-acima" ||
+        a.id === "cartao-teto",
+    ),
     analise: analisarGastos(atual, anterior, {
       feira: folha.resultado.despesasVariaveis.feira.sugestao,
       gasolina: folha.resultado.despesasVariaveis.gasolina.sugestao,

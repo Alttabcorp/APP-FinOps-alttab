@@ -38,6 +38,9 @@ export type EntradaMes = {
     alttab: number;
     poupanca: number;
     poupancaEditado: boolean;
+    /** Ausente = valor informado (comportamento antigo). Falso = usa a sugestão dinâmica. */
+    fundoEditado?: boolean;
+    alttabEditado?: boolean;
   };
   gastoPessoalAlvo?: number | null;
   reposicaoMeta?: number;

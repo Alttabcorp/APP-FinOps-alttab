@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
+import { registrarTransacao } from "@/lib/application/transacao-service";
 import { gastoEmpresaParaDto, type GastoEmpresaDTO, type GastoEmpresaPayload } from "@/lib/application/gasto-empresa-mapper";
 import { isCompetencia } from "@/lib/domain/financeiro/competencia";
 import { devolverGastoEmpresa, retirarDaEmpresa } from "@/lib/domain/financeiro/gasto-empresa";
@@ -66,6 +67,13 @@ export const registrarGastoEmpresa = async (payload: GastoEmpresaPayload): Promi
       where: { id: conta.id },
       data: { saldo: saida.saldo },
     });
+    await registrarTransacao(tx, {
+      contaId: conta.id,
+      tipo: "RETIRADA",
+      descricao: dados.nome,
+      valor: -dados.valor,
+      competencia: dados.competencia,
+    });
     return tx.gastoEmpresa.create({
       data: {
         ...dados,
@@ -103,6 +111,13 @@ export const excluirGastoEmpresa = async (id: string) => {
     await tx.contaBancaria.update({
       where: { id: existente.contaId },
       data: { saldo: volta.saldo },
+    });
+    await registrarTransacao(tx, {
+      contaId: existente.contaId,
+      tipo: "ESTORNO",
+      descricao: `Desfeito: ${existente.nome}`,
+      valor: Number(existente.valor),
+      competencia: existente.competencia,
     });
     await tx.gastoEmpresa.delete({ where: { id } });
   });

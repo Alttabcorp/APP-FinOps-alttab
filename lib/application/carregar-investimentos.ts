@@ -28,6 +28,7 @@ export async function carregarInvestimentos(competenciaPedido?: string) {
     dto: folha.dto,
     faturaCartao: folha.faturaCartao,
     contas,
+    contasMeta: folha.contas.filter((conta) => conta.finalidade !== "EMPRESA"),
     historico,
     metas: montarMetas({
       contas: folha.contas,

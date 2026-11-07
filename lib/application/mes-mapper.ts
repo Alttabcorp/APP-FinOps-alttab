@@ -1,5 +1,6 @@
 import type { ItemFinanceiro as ItemPrisma, MesFinanceiro, PapelExtra, TipoItem } from "@prisma/client";
 import { calcularMes } from "@/lib/domain/financeiro/calcular-mes";
+import type { CampoMarca } from "@/lib/domain/financeiro/transferencia";
 import type { EntradaMes, ItemFinanceiro, ResultadoMes } from "@/lib/domain/financeiro/tipos";
 
 export type MesComItens = MesFinanceiro & { itens: ItemPrisma[] };
@@ -26,8 +27,12 @@ export type MesDTO = {
   alttabReal: number;
   poupancaReal: number;
   poupancaEditado: boolean;
+  fundoEditado: boolean;
+  alttabEditado: boolean;
   fechado: boolean;
   fechadoEm: string | null;
+  depositos: Record<CampoMarca, boolean>;
+  sobraAnteriorConfirmada: boolean;
 };
 
 const decimalParaNumero = (valor: { toString(): string } | number) => Number(valor);
@@ -58,6 +63,8 @@ export const mesParaEntrada = (mes: MesComItens): EntradaMes => {
       alttab: decimalParaNumero(mes.alttabReal),
       poupanca: decimalParaNumero(mes.poupancaReal),
       poupancaEditado: mes.poupancaEditado,
+      fundoEditado: mes.fundoEditado,
+      alttabEditado: mes.alttabEditado,
     },
   };
 };
@@ -82,8 +89,18 @@ export const mesParaDto = (mes: MesComItens): MesDTO => ({
   alttabReal: decimalParaNumero(mes.alttabReal),
   poupancaReal: decimalParaNumero(mes.poupancaReal),
   poupancaEditado: mes.poupancaEditado,
+  fundoEditado: mes.fundoEditado,
+  alttabEditado: mes.alttabEditado,
   fechado: mes.fechado,
   fechadoEm: mes.fechadoEm ? mes.fechadoEm.toISOString() : null,
+  sobraAnteriorConfirmada: Boolean(mes.sobraAnteriorConfirmada),
+  depositos: {
+    poupanca: Boolean(mes.poupancaDepositado),
+    fundo: Boolean(mes.fundoDepositado),
+    alttab: Boolean(mes.alttabDepositado),
+    meta: Boolean(mes.metaDepositado),
+    cartao: Boolean(mes.cartaoPago),
+  },
 });
 
 export const calcularMesPersistido = (

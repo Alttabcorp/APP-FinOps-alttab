@@ -60,9 +60,9 @@ describe("priorizarCaixa", () => {
     const pessoal = etapas.find((etapa) => etapa.id === "pessoal");
     const meta = etapas.find((etapa) => etapa.id === "meta");
     expect(pessoal?.status).toBe("ok");
-    quase(pessoal?.coberto ?? 0, 65);
+    quase(pessoal?.coberto ?? 0, 292.5);
     expect(meta?.status).toBe("ok");
-    quase(meta?.precisa ?? 0, 585);
+    quase(meta?.precisa ?? 0, 357.5);
   });
 
   it("usa o valor de gasto pessoal informado e manda o resto para a meta", () => {

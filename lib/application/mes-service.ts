@@ -1,11 +1,13 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
+import { registrarTransacao } from "@/lib/application/transacao-service";
 import { progressoPagamento } from "@/lib/application/checklist";
 import { calcularMesPersistido, mesParaDto, type MesComItens, type MesDTO } from "@/lib/application/mes-mapper";
-import { avancarCompetencia, isCompetencia } from "@/lib/domain/financeiro/competencia";
+import { avancarCompetencia, formatarNomeMes, isCompetencia } from "@/lib/domain/financeiro/competencia";
 import {
   aplicarValoresDoMesAnterior,
   clonarItensParaNovoMes,
+  PREFIXO_SOBRA,
   tiposCopiaValidos,
   TIPOS_COPIA_PADRAO,
   type ItemClonavel,
@@ -25,7 +27,7 @@ const ERRO_MES_FECHADO = "Este mês está fechado. Reabra para editar.";
 
 const mesVazio = (competencia: string): Prisma.MesFinanceiroCreateInput => ({
   competencia,
-  alttabReal: 100,
+  alttabReal: 0,
   itens: {
     create: itensPadrao().map((item, ordem) => ({
       tipo: item.tipo,
@@ -47,13 +49,37 @@ const itemParaCreate = (item: ItemClonavel, ordem: number): Prisma.ItemFinanceir
   ...(item.fonteRendaId ? { fonteRenda: { connect: { id: item.fonteRendaId } } } : {}),
 });
 
+/**
+ * Próximo mês a partir do atual:
+ * - copia valores só dos tipos escolhidos (padrão: SALDO, EXTRA, CONTA);
+ * - EXTRA_MES e demais ficam com valor 0;
+ * - feira/cartão avulso/gasolina/fundo/poupança zerados (defaults);
+ * - alttab volta a 100;
+ * - parcelas do cartão não são clonadas: CompraCartao é global e avança por competência.
+ */
 const clonarMes = (
   origem: MesComItens,
   competencia: string,
   copiarValoresDe: TipoItem[],
 ): Prisma.MesFinanceiroCreateInput => ({
   competencia,
-  alttabReal: 100,
+  feiraReal: 0,
+  cartaoReal: 0,
+  gasolinaReal: 0,
+  fundoReal: 0,
+  poupancaReal: 0,
+  poupancaEditado: false,
+  poupancaDepositado: false,
+  fundoDepositado: false,
+  alttabDepositado: false,
+  metaDepositado: false,
+  cartaoPago: false,
+  sobraAnteriorConfirmada: false,
+  alttabReal: 0,
+  fundoEditado: false,
+  alttabEditado: false,
+  fechado: false,
+  fechadoEm: null,
   itens: {
     create: clonarItensParaNovoMes(
       origem.itens.map((item) => ({
@@ -122,19 +148,101 @@ const CAMPOS_DEPOSITO_MES = {
   fundo: "fundoDepositado",
   alttab: "alttabDepositado",
   meta: "metaDepositado",
+  cartao: "cartaoPago",
 } as const;
 
+const CAMPOS_CREDITO_MES = {
+  poupanca: "poupancaCreditado",
+  fundo: "fundoCreditado",
+  alttab: "alttabCreditado",
+  meta: "metaCreditado",
+} as const;
+
+const ROTULO_DEPOSITO = {
+  poupanca: "poupança",
+  fundo: "fundo imobiliário",
+  alttab: "Alttab",
+  meta: "objetivo",
+} as const;
+
+const contaDoDeposito = async (tx: Prisma.TransactionClient, campo: keyof typeof CAMPOS_CREDITO_MES) => {
+  const contas = await tx.contaBancaria.findMany({ orderBy: [{ ordem: "asc" }, { criadoEm: "asc" }] });
+  const porFinalidade = (finalidade: string) => contas.find((conta) => conta.finalidade === finalidade) ?? null;
+  if (campo === "poupanca") return contas.find((conta) => conta.recebePoupanca) ?? porFinalidade("POUPANCA");
+  if (campo === "fundo") return porFinalidade("INVESTIMENTO");
+  if (campo === "alttab") return porFinalidade("EMPRESA");
+  return porFinalidade("META");
+};
+
+/**
+ * Marca o depósito como feito e credita o valor no saldo da conta de destino.
+ * Ao desmarcar, devolve exatamente o que foi creditado.
+ */
 export const marcarDeposito = async (
   competencia: string,
   campo: keyof typeof CAMPOS_DEPOSITO_MES,
   depositado: boolean,
+  valor = 0,
 ) => {
   const mes = await buscarMes(competencia);
   if (!mes) throw new Error("Mês não encontrado.");
   garantirMesAberto(mes);
-  return prisma.mesFinanceiro.update({
-    where: { id: mes.id },
-    data: { [CAMPOS_DEPOSITO_MES[campo]]: Boolean(depositado) },
+  const flag = { [CAMPOS_DEPOSITO_MES[campo]]: Boolean(depositado) };
+
+  if (campo === "cartao") {
+    return prisma.mesFinanceiro.update({ where: { id: mes.id }, data: flag });
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const colunaCredito = CAMPOS_CREDITO_MES[campo];
+    const creditado = Number(mes[colunaCredito]);
+    const alvo = depositado ? Math.max(0, Math.round((Number.isFinite(valor) ? valor : 0) * 100) / 100) : 0;
+    const conta = await contaDoDeposito(tx, campo);
+    let creditoFinal = 0;
+    if (conta) {
+      const delta = Math.round((alvo - creditado) * 100) / 100;
+      if (Math.abs(delta) >= 0.005) {
+        const saldo = Math.max(0, Math.round((Number(conta.saldo) + delta) * 100) / 100);
+        await tx.contaBancaria.update({ where: { id: conta.id }, data: { saldo } });
+        await registrarTransacao(tx, {
+          contaId: conta.id,
+          tipo: depositado ? "DEPOSITO" : "ESTORNO",
+          descricao: depositado ? `Depósito: ${ROTULO_DEPOSITO[campo]}` : `Depósito desmarcado: ${ROTULO_DEPOSITO[campo]}`,
+          valor: delta,
+          competencia,
+        });
+      }
+      creditoFinal = alvo;
+    }
+    return tx.mesFinanceiro.update({
+      where: { id: mes.id },
+      data: { ...flag, [colunaCredito]: creditoFinal },
+    });
+  });
+};
+
+export const confirmarSobraAnterior = async (competencia: string, valor: number): Promise<MesComItens> => {
+  const mes = await buscarMes(competencia);
+  if (!mes) throw new Error("Mês não encontrado.");
+  garantirMesAberto(mes);
+  const valorOk = Number.isFinite(valor) ? Math.max(0, Math.round(valor * 100) / 100) : 0;
+  const nome = `${PREFIXO_SOBRA}${formatarNomeMes(avancarCompetencia(competencia, -1))}`;
+
+  return prisma.$transaction(async (tx) => {
+    await tx.itemFinanceiro.deleteMany({
+      where: { mesId: mes.id, tipo: "SALDO", nome: { startsWith: PREFIXO_SOBRA } },
+    });
+    if (valorOk > 0) {
+      const ultimo = await tx.itemFinanceiro.aggregate({ where: { mesId: mes.id }, _max: { ordem: true } });
+      await tx.itemFinanceiro.create({
+        data: { mesId: mes.id, tipo: "SALDO", nome, valor: valorOk, ordem: (ultimo._max.ordem ?? -1) + 1 },
+      });
+    }
+    return tx.mesFinanceiro.update({
+      where: { id: mes.id },
+      data: { sobraAnteriorConfirmada: true },
+      include: incluirItens,
+    });
   });
 };
 
@@ -160,6 +268,8 @@ export const salvarMes = async (payload: MesDTO): Promise<MesComItens> => {
         alttabReal: payload.alttabReal,
         poupancaReal: payload.poupancaReal,
         poupancaEditado: payload.poupancaEditado,
+        fundoEditado: payload.fundoEditado,
+        alttabEditado: payload.alttabEditado,
       },
       update: {
         feiraReal: payload.feiraReal,
@@ -169,6 +279,10 @@ export const salvarMes = async (payload: MesDTO): Promise<MesComItens> => {
         alttabReal: payload.alttabReal,
         poupancaReal: payload.poupancaReal,
         poupancaEditado: payload.poupancaEditado,
+        fundoEditado:
+          payload.fundoEditado || (existente ? Math.abs(Number(existente.fundoReal) - payload.fundoReal) > 0.004 : false),
+        alttabEditado:
+          payload.alttabEditado || (existente ? Math.abs(Number(existente.alttabReal) - payload.alttabReal) > 0.004 : false),
       },
     });
 

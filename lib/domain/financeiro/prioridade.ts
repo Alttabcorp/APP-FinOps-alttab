@@ -9,7 +9,9 @@ export const ORDEM_PRIORIDADE = [
   { id: "meta", rotulo: "Meta / investimento" },
 ] as const;
 
-export const FRACAO_GASTO_PESSOAL = 0.1;
+/** Da sobra: 10% vai para a meta e o restante é dividido em dois gastos individuais (45% cada). */
+export const FRACAO_META = 0.1;
+export const FRACAO_GASTO_PESSOAL = (1 - FRACAO_META) / 2;
 
 export type IdPrioridade = (typeof ORDEM_PRIORIDADE)[number]["id"];
 

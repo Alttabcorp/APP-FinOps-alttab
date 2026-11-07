@@ -82,3 +82,14 @@ describe("tiposCopiaValidos", () => {
     expect(tiposCopiaValidos(null)).toEqual(TIPOS_COPIA_PADRAO);
   });
 });
+
+describe("sobra do mês anterior", () => {
+  it("não é copiada para o mês seguinte", () => {
+    const origem = [
+      { tipo: "SALDO" as const, nome: "Sobra de outubro", valor: 50, ordem: 0, pago: false },
+      { tipo: "SALDO" as const, nome: "Salário", valor: 1000, ordem: 1, pago: false },
+    ];
+    const novo = clonarItensParaNovoMes(origem, ["SALDO"]);
+    expect(novo.map((i) => i.nome)).toEqual(["Salário"]);
+  });
+});

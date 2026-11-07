@@ -12,3 +12,12 @@ export const progressoPagamento = (itens: ItemDTO[]) => {
     .reduce((acc, item) => acc + (Number(item.valor) || 0), 0);
   return { total: contas.length, pagas: pagas.length, aberto };
 };
+
+/** Soma dos valores das contas marcadas como pagas (checklist do mês). */
+export const totalContasPagas = (itens: ItemDTO[]) =>
+  itens
+    .filter((item) => ehAPagar(item.tipo) && item.pago)
+    .reduce((acc, item) => acc + (Number(item.valor) || 0), 0);
+
+export const temContaComValor = (itens: ItemDTO[]) =>
+  itens.some((item) => ehAPagar(item.tipo) && Math.abs(Number(item.valor) || 0) >= 0.005);

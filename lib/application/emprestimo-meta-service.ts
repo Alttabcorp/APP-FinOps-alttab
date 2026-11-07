@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
+import { registrarTransacao } from "@/lib/application/transacao-service";
 import {
   emprestimoComSituacao,
   emprestimoParaDto,
@@ -98,6 +99,12 @@ export const registrarSaqueMeta = async (payload: EmprestimoMetaPayload): Promis
       where: { id: conta.id },
       data: { saldo: saque.saldo },
     });
+    await registrarTransacao(tx, {
+      contaId: conta.id,
+      tipo: "RETIRADA",
+      descricao: dados.nome,
+      valor: -dados.valorTotal,
+    });
     return tx.emprestimoMeta.create({
       data: {
         ...dados,
@@ -131,6 +138,12 @@ export const devolverEmprestimoMeta = async (
       where: { id: existente.contaId },
       data: { saldo: devolucao.saldo },
     });
+    await registrarTransacao(tx, {
+      contaId: existente.contaId,
+      tipo: "REPOSICAO",
+      descricao: `Reposição: ${existente.nome}`,
+      valor: devolucao.pago,
+    });
     return tx.emprestimoMeta.update({
       where: { id: existente.id },
       data: { pagoTotal: Number(existente.pagoTotal) + devolucao.pago },
@@ -155,6 +168,12 @@ export const excluirEmprestimoMeta = async (id: string) => {
       await tx.contaBancaria.update({
         where: { id: existente.contaId },
         data: { saldo: Number(existente.conta.saldo) + valorTotal },
+      });
+      await registrarTransacao(tx, {
+        contaId: existente.contaId,
+        tipo: "ESTORNO",
+        descricao: `Desfeito: ${existente.nome}`,
+        valor: valorTotal,
       });
       await tx.emprestimoMeta.delete({ where: { id } });
     });

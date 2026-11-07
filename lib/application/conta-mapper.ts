@@ -15,6 +15,7 @@ export type ContaDTO = {
   banco: string;
   titular: string;
   chavePix: string;
+  qrCode: string;
   recebePoupanca: boolean;
   ordem: number;
 };
@@ -34,6 +35,8 @@ export type ContaPayload = {
   banco?: string;
   titular?: string;
   chavePix?: string;
+  /** Imagem do QR (data URL). Omitido = não altera. */
+  qrCode?: string;
   recebePoupanca?: boolean;
 };
 
@@ -50,6 +53,7 @@ export const contaParaDto = (conta: ContaBancaria): ContaDTO => ({
   banco: conta.banco ?? "",
   titular: conta.titular ?? "",
   chavePix: conta.chavePix ?? "",
+  qrCode: conta.qrCode ?? "",
   recebePoupanca: Boolean(conta.recebePoupanca),
   ordem: conta.ordem,
 });

@@ -88,22 +88,42 @@ export const calcularMes = (input: Partial<EntradaMes> = {}): ResultadoMes => {
   const saldoContas = caixaOperacional + rendimento.paraContas - gastoMensal;
 
   const poupancaSugestao = totalSaldo * 0.1 + rendimento.reinvestidoPoupanca;
-  const alttabSugestao = rendimento.apertado ? 0 : ALTTAB_SUGESTAO;
   const fundo = planejarFundo({
     apertado: rendimento.apertado,
     rendimentoFundo: proventoFundo,
     reinvestidoFundo: rendimento.reinvestidoFundo,
   });
-  const fundoBase = fundo.aporte;
-  const fundoSugestao = fundo.sugestao;
 
-  const fundoReal = Number(inv.fundo) || 0;
-  const alttabReal = Number(inv.alttab) || 0;
+  // O que sobra depois de contas, cartão, feira, gasolina e poupança (10%) é dividido
+  // em partes iguais entre fundo imobiliário, Alttab e objetivo.
+  const gasolinaReserva = Math.max(gasolinaReal, valeTransporte);
+  const feiraExtra = Math.max(0, feiraReal - valeAlimentacao);
+  const faturaEstimada = cartaoFixo + cartaoParcelas + cartaoAvulso;
+  const disponivelInvestir = rendimento.apertado
+    ? 0
+    : Math.max(
+        0,
+        saldoContas -
+          gasolinaReserva -
+          faturaEstimada -
+          poupancaSugestao -
+          feiraExtra -
+          (Number(input.reposicaoMeta) || 0) -
+          (Number(input.gastoPessoalAlvo) || 0),
+      );
+  const parteInvestir = Math.floor((disponivelInvestir / 3) * 100) / 100;
+  const fundoBase = parteInvestir;
+  const alttabSugestao = parteInvestir;
+  const fundoSugestao = Math.round((parteInvestir + fundo.reaplicado) * 100) / 100;
+
+  const fundoReal = inv.fundoEditado === false ? fundoSugestao : Number(inv.fundo) || 0;
+  const alttabReal = inv.alttabEditado === false ? alttabSugestao : Number(inv.alttab) || 0;
   const poupancaReal = inv.poupancaEditado ? Number(inv.poupanca) || 0 : poupancaSugestao;
   const totalInvestido = fundoReal + alttabReal + poupancaReal;
 
   const cartao = planejarCartao({
-    saldoContas,
+    // Teto do cartão = caixa das contas − o que já foi investido (regra da planilha).
+    saldoContas: saldoContas - totalInvestido,
     fixo: cartaoFixo,
     parcelas: cartaoParcelas,
     avulso: cartaoAvulso,
@@ -113,13 +133,13 @@ export const calcularMes = (input: Partial<EntradaMes> = {}): ResultadoMes => {
   const sobrou = ganhou - gasto;
 
   const prioridade = priorizarCaixa({
-    caixa: caixaOperacional + rendimento.paraContas,
+    caixa: Math.max(0, caixaOperacional + rendimento.paraContas - gasolinaReserva),
     valeAlimentacao,
     contas: gastoMensal,
     cartao: cartao.fatura,
     poupanca: poupancaSugestao,
     feira: Math.max(feiraReal, valeAlimentacao),
-    investimento: fundo.aporte + alttabSugestao,
+    investimento: fundoSugestao + alttabSugestao,
     gastoPessoal: input.gastoPessoalAlvo,
     reposicaoMeta: input.reposicaoMeta,
   });

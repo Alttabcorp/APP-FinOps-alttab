@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
+import { registrarTransacao } from "@/lib/application/transacao-service";
 import {
   contaComProgresso,
   contaParaDto,
@@ -17,6 +18,7 @@ const LIMITE_NOME = 80;
 const LIMITE_BANCO = 40;
 const LIMITE_TITULAR = 80;
 const LIMITE_CHAVE = 120;
+const LIMITE_QR = 600_000;
 
 const textoLivre = (valor: unknown, limite: number, rotulo: string) => {
   const texto = String(valor ?? "").trim();
@@ -28,6 +30,15 @@ const normalizarMeta = (valor: number | null | undefined) => {
   const n = Number(valor);
   if (!Number.isFinite(n) || n <= 0) return null;
   return n;
+};
+
+const validarQr = (valor: string) => {
+  if (valor === "") return "";
+  if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(valor)) {
+    throw new Error("O QR code precisa ser uma imagem PNG, JPG ou WebP.");
+  }
+  if (valor.length > LIMITE_QR) throw new Error("A imagem do QR code é grande demais.");
+  return valor;
 };
 
 const validarPayload = (payload: ContaPayload) => {
@@ -50,6 +61,7 @@ const validarPayload = (payload: ContaPayload) => {
     titular: textoLivre(payload.titular, LIMITE_TITULAR, "O titular"),
     chavePix: textoLivre(payload.chavePix, LIMITE_CHAVE, "A chave PIX"),
     recebePoupanca: Boolean(payload.recebePoupanca),
+    ...(payload.qrCode === undefined ? {} : { qrCode: validarQr(payload.qrCode) }),
   };
 };
 
@@ -129,6 +141,12 @@ export const salvarConta = async (payload: ContaPayload): Promise<ContaDTO> => {
       const atualizada = await tx.contaBancaria.update({
         where: { id: payload.id },
         data: dados,
+      });
+      await registrarTransacao(tx, {
+        contaId: atualizada.id,
+        tipo: "AJUSTE",
+        descricao: "Ajuste manual do saldo",
+        valor: Number(atualizada.saldo) - Number(existente.saldo),
       });
       return contaParaDto(atualizada);
     }

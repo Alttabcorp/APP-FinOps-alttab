@@ -152,5 +152,13 @@ export type CampoDeposito = (typeof CAMPOS_DEPOSITO)[number];
 export const isCampoDeposito = (valor: unknown): valor is CampoDeposito =>
   typeof valor === "string" && (CAMPOS_DEPOSITO as readonly string[]).includes(valor);
 
+/** Marcas de "feito" no checklist: depósitos + fatura do cartão. */
+export const CAMPOS_MARCA = [...CAMPOS_DEPOSITO, "cartao"] as const;
+
+export type CampoMarca = (typeof CAMPOS_MARCA)[number];
+
+export const isCampoMarca = (valor: unknown): valor is CampoMarca =>
+  typeof valor === "string" && (CAMPOS_MARCA as readonly string[]).includes(valor);
+
 export const linhasDepositoInvestimento = (linhas: LinhaTransferencia[]) =>
   linhas.filter((linha) => isCampoDeposito(linha.id));

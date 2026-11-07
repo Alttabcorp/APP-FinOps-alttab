@@ -1,4 +1,4 @@
-import { indiceEntreCompetencias, isCompetencia } from "./competencia";
+import { avancarCompetencia, indiceEntreCompetencias, isCompetencia } from "./competencia";
 
 export type CompraCartaoEntrada = {
   nome: string;
@@ -98,4 +98,33 @@ export const planejarCartao = (entrada: {
     cabe,
     estoura: fatura > teto + 0.005,
   };
+};
+
+export const DIA_FECHAMENTO_PADRAO = 7;
+
+/** Dia em que a fatura vira: compras depois dele só são cobradas no mês seguinte. */
+export const isDiaFechamento = (valor: unknown): valor is number => {
+  const dia = Number(valor);
+  return Number.isInteger(dia) && dia >= 1 && dia <= 28;
+};
+
+/** Em qual mês (competência) uma compra feita em ano/mes/dia entra na fatura. */
+export const competenciaDaFatura = (
+  data: { ano: number; mes: number; dia: number },
+  diaFechamento: number = DIA_FECHAMENTO_PADRAO,
+): string => {
+  const base = `${data.ano}-${String(data.mes).padStart(2, "0")}`;
+  return data.dia > diaFechamento ? avancarCompetencia(base, 1) : base;
+};
+
+/** Data de hoje no fuso de São Paulo, em partes. */
+export const hojeSaoPaulo = (agora = new Date()) => {
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(agora);
+  const pega = (tipo: string) => Number(partes.find((parte) => parte.type === tipo)?.value);
+  return { ano: pega("year"), mes: pega("month"), dia: pega("day") };
 };

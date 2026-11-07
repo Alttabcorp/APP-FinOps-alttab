@@ -11,6 +11,11 @@ export type ItemClonavel = {
   contaAnualId?: string | null;
 };
 
+/** Linha de saldo criada ao confirmar a sobra do mês anterior; nunca é copiada adiante. */
+export const PREFIXO_SOBRA = "Sobra de ";
+export const ehSobraAnterior = (item: { tipo: TipoItem; nome: string }) =>
+  item.tipo === "SALDO" && item.nome.startsWith(PREFIXO_SOBRA);
+
 export const TIPOS_COPIA_PADRAO: TipoItem[] = ["SALDO", "EXTRA", "CONTA"];
 // Abrir um mês novo usa este padrão: entradas e rendimento do mês anterior entram como previsão.
 
@@ -34,7 +39,7 @@ export const clonarItensParaNovoMes = (
 ): ItemClonavel[] => {
   const tipos = new Set(copiarValoresDe);
   return origem
-    .filter((item) => item.tipo !== "ANUAL")
+    .filter((item) => item.tipo !== "ANUAL" && !ehSobraAnterior(item))
     .map((item, ordem) => ({
       tipo: item.tipo,
       nome: item.nome,
@@ -54,6 +59,7 @@ export const aplicarValoresDoMesAnterior = (
 ): ItemClonavel[] => {
   if (copiarValoresDe.length === 0) return destino.map((item, ordem) => ({ ...item, ordem }));
 
+  origem = origem.filter((item) => !ehSobraAnterior(item));
   const tipos = new Set(copiarValoresDe);
   const resultado: ItemClonavel[] = destino.filter((item) => !tipos.has(item.tipo));
 

@@ -59,10 +59,18 @@ model MesFinanceiro {
   alttabReal      Decimal           @default(100) @db.Decimal(12, 2)
   poupancaReal         Decimal           @default(0) @db.Decimal(12, 2)
   poupancaEditado      Boolean           @default(false)
+  fundoEditado         Boolean           @default(false)
+  alttabEditado        Boolean           @default(false)
   poupancaDepositado   Boolean           @default(false)
   fundoDepositado      Boolean           @default(false)
   alttabDepositado     Boolean           @default(false)
   metaDepositado       Boolean           @default(false)
+  cartaoPago           Boolean           @default(false)
+  poupancaCreditado    Decimal           @default(0) @db.Decimal(12, 2)
+  fundoCreditado       Decimal           @default(0) @db.Decimal(12, 2)
+  alttabCreditado      Decimal           @default(0) @db.Decimal(12, 2)
+  metaCreditado        Decimal           @default(0) @db.Decimal(12, 2)
+  sobraAnteriorConfirmada Boolean        @default(false)
   fechado              Boolean           @default(false)
   fechadoEm       DateTime?
   criadoEm        DateTime          @default(now())
@@ -100,12 +108,14 @@ model ContaBancaria {
   banco          String           @default("")
   titular        String           @default("")
   chavePix       String           @default("")
+  qrCode         String           @default("")
   recebePoupanca Boolean          @default(false)
   ordem          Int              @default(0)
   criadoEm       DateTime         @default(now())
   atualizadoEm   DateTime         @updatedAt
   emprestimos    EmprestimoMeta[]
   gastosEmpresa  GastoEmpresa[]
+  transacoes     Transacao[]
 
   @@index([ordem])
 }
@@ -208,5 +218,34 @@ model PreferenciaCasa {
   gastoPessoalMes        Decimal? @db.Decimal(12, 2)
   destinoCartaoNome      String   @default("")
   destinoCartaoChave     String   @default("")
+  diaFechamentoCartao    Int      @default(7)
   atualizadoEm           DateTime @updatedAt
+}
+
+/// Histórico de movimentações de saldo das caixinhas. Valor com sinal: positivo entra, negativo sai.
+model Transacao {
+  id          String        @id @default(cuid())
+  data        DateTime      @default(now())
+  tipo        String
+  descricao   String
+  valor       Decimal       @db.Decimal(12, 2)
+  competencia String
+  contaId     String
+  conta       ContaBancaria @relation(fields: [contaId], references: [id], onDelete: Cascade)
+
+  @@index([contaId])
+  @@index([data])
+  @@index([competencia])
+}
+
+/// Lançamentos avulsos de gasto variável (feira, gasolina, cartão avulso). A soma do mês fica em MesFinanceiro.
+model LancamentoVariavel {
+  id          String   @id @default(cuid())
+  competencia String
+  categoria   String
+  valor       Decimal  @db.Decimal(12, 2)
+  descricao   String   @default("")
+  data        DateTime @default(now())
+
+  @@index([competencia, categoria])
 }

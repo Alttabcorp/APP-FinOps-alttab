@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { mesParaDto, type MesDTO } from "@/lib/application/mes-mapper";
 import {
+  confirmarSobraAnterior,
   criarProximoMes,
   definirMesFechado,
   marcarDeposito,
@@ -10,7 +11,8 @@ import {
   salvarMes,
   trazerValoresMesAnterior,
 } from "@/lib/application/mes-service";
-import { isCampoDeposito, type CampoDeposito } from "@/lib/domain/financeiro/transferencia";
+import { carregarFolha } from "@/lib/application/carregar-folha";
+import { isCampoMarca, montarRoteiroTransferencia, type CampoMarca } from "@/lib/domain/financeiro/transferencia";
 
 export type AcaoMesResultado =
   | { ok: true; mes: MesDTO; criado?: boolean }
@@ -24,12 +26,12 @@ const falha = (erro: unknown, fallback: string): AcaoMesResultado => ({
 const revalidarMes = (competencia: string) => {
   revalidatePath(`/meses/${competencia}`);
   revalidatePath("/entradas");
+  revalidatePath("/contas");
   revalidatePath("/gastos");
+  revalidatePath("/cartao");
   revalidatePath("/investimentos");
-  revalidatePath("/historico");
-  revalidatePath("/acompanhar");
-  revalidatePath("/dashboard");
   revalidatePath("/");
+  revalidatePath("/objetivos");
 };
 
 export async function salvarMesAction(payload: MesDTO): Promise<AcaoMesResultado> {
@@ -85,12 +87,23 @@ export type AcaoDepositoResultado = { ok: true } | { ok: false; erro: string };
 
 export async function marcarDepositoAction(
   competencia: string,
-  campo: CampoDeposito,
+  campo: CampoMarca,
   depositado: boolean,
 ): Promise<AcaoDepositoResultado> {
-  if (!isCampoDeposito(campo)) return { ok: false, erro: "Depósito inválido." };
+  if (!isCampoMarca(campo)) return { ok: false, erro: "Depósito inválido." };
   try {
-    await marcarDeposito(competencia, campo, depositado);
+    let valor = 0;
+    if (depositado && campo !== "cartao") {
+      // O valor creditado é o mesmo que o roteiro de transferências mostra para este depósito.
+      const folha = await carregarFolha(competencia);
+      const linha = folha
+        ? montarRoteiroTransferencia(folha.resultado, { contas: [], anuais: [], destinoCartao: null }).find(
+            (item) => item.id === campo,
+          )
+        : null;
+      valor = linha?.valor ?? 0;
+    }
+    await marcarDeposito(competencia, campo, depositado, valor);
     revalidarMes(competencia);
     return { ok: true };
   } catch (erro) {
@@ -107,5 +120,18 @@ export async function garantirMesAction(competencia: string): Promise<AcaoMesRes
     return { ok: true, mes: mesParaDto(mes) };
   } catch (erro) {
     return falha(erro, "Não foi possível abrir o mês.");
+  }
+}
+
+export async function confirmarSobraAnteriorAction(
+  competencia: string,
+  valor: number,
+): Promise<AcaoMesResultado> {
+  try {
+    const mes = await confirmarSobraAnterior(competencia, Number(valor));
+    revalidarMes(competencia);
+    return { ok: true, mes: mesParaDto(mes) };
+  } catch (erro) {
+    return falha(erro, "Não foi possível registrar a sobra.");
   }
 }

@@ -1,9 +1,11 @@
-import type { Metadata } from "next";
-import { Fraunces, Source_Sans_3 } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Fraunces, Figtree } from "next/font/google";
+import { InstalarApp } from "@/components/instalar-app";
+import { RegistrarSw } from "@/components/registrar-sw";
 import { Shell } from "@/components/shell";
 import "./globals.css";
 
-const sans = Source_Sans_3({
+const sans = Figtree({
   subsets: ["latin"],
   variable: "--font-sans",
   display: "swap",
@@ -18,6 +20,23 @@ const display = Fraunces({
 export const metadata: Metadata = {
   title: "Contas da casa",
   description: "Contas da casa: o que entrou, o que pagou, o que sobrou para a meta.",
+  applicationName: "Alttab FinOps",
+  appleWebApp: { capable: true, title: "FinOps", statusBarStyle: "black-translucent" },
+  formatDetection: { telephone: false },
+  icons: {
+    icon: [
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0b2a21",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -28,6 +47,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Ir para o conteúdo
         </a>
         <Shell>{children}</Shell>
+        <RegistrarSw />
+        <InstalarApp />
       </body>
     </html>
   );

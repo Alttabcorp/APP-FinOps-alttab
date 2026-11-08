@@ -68,16 +68,21 @@ const clonarMes = (
   gasolinaReal: 0,
   fundoReal: 0,
   poupancaReal: 0,
+  reservaReal: 0,
+  metaReal: 0,
   poupancaEditado: false,
   poupancaDepositado: false,
   fundoDepositado: false,
   alttabDepositado: false,
+  reservaDepositado: false,
   metaDepositado: false,
   cartaoPago: false,
   sobraAnteriorConfirmada: false,
   alttabReal: 0,
   fundoEditado: false,
   alttabEditado: false,
+  reservaEditado: false,
+  metaEditado: false,
   fechado: false,
   fechadoEm: null,
   itens: {
@@ -145,6 +150,7 @@ const garantirMesAberto = (mes: { fechado: boolean }) => {
 
 const CAMPOS_DEPOSITO_MES = {
   poupanca: "poupancaDepositado",
+  reserva: "reservaDepositado",
   fundo: "fundoDepositado",
   alttab: "alttabDepositado",
   meta: "metaDepositado",
@@ -153,6 +159,7 @@ const CAMPOS_DEPOSITO_MES = {
 
 const CAMPOS_CREDITO_MES = {
   poupanca: "poupancaCreditado",
+  reserva: "reservaCreditado",
   fundo: "fundoCreditado",
   alttab: "alttabCreditado",
   meta: "metaCreditado",
@@ -160,6 +167,7 @@ const CAMPOS_CREDITO_MES = {
 
 const ROTULO_DEPOSITO = {
   poupanca: "poupança",
+  reserva: "reserva de emergência",
   fundo: "fundo imobiliário",
   alttab: "Alttab",
   meta: "objetivo",
@@ -169,6 +177,7 @@ const contaDoDeposito = async (tx: Prisma.TransactionClient, campo: keyof typeof
   const contas = await tx.contaBancaria.findMany({ orderBy: [{ ordem: "asc" }, { criadoEm: "asc" }] });
   const porFinalidade = (finalidade: string) => contas.find((conta) => conta.finalidade === finalidade) ?? null;
   if (campo === "poupanca") return contas.find((conta) => conta.recebePoupanca) ?? porFinalidade("POUPANCA");
+  if (campo === "reserva") return porFinalidade("RESERVA");
   if (campo === "fundo") return porFinalidade("INVESTIMENTO");
   if (campo === "alttab") return porFinalidade("EMPRESA");
   return porFinalidade("META");
@@ -267,9 +276,13 @@ export const salvarMes = async (payload: MesDTO): Promise<MesComItens> => {
         fundoReal: payload.fundoReal,
         alttabReal: payload.alttabReal,
         poupancaReal: payload.poupancaReal,
+        reservaReal: payload.reservaReal,
+        metaReal: payload.metaReal,
         poupancaEditado: payload.poupancaEditado,
         fundoEditado: payload.fundoEditado,
         alttabEditado: payload.alttabEditado,
+        reservaEditado: payload.reservaEditado,
+        metaEditado: payload.metaEditado,
       },
       update: {
         feiraReal: payload.feiraReal,
@@ -278,11 +291,18 @@ export const salvarMes = async (payload: MesDTO): Promise<MesComItens> => {
         fundoReal: payload.fundoReal,
         alttabReal: payload.alttabReal,
         poupancaReal: payload.poupancaReal,
+        reservaReal: payload.reservaReal,
+        metaReal: payload.metaReal,
         poupancaEditado: payload.poupancaEditado,
         fundoEditado:
           payload.fundoEditado || (existente ? Math.abs(Number(existente.fundoReal) - payload.fundoReal) > 0.004 : false),
         alttabEditado:
           payload.alttabEditado || (existente ? Math.abs(Number(existente.alttabReal) - payload.alttabReal) > 0.004 : false),
+        reservaEditado:
+          payload.reservaEditado ||
+          (existente ? Math.abs(Number(existente.reservaReal) - payload.reservaReal) > 0.004 : false),
+        metaEditado:
+          payload.metaEditado || (existente ? Math.abs(Number(existente.metaReal) - payload.metaReal) > 0.004 : false),
       },
     });
 

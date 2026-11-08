@@ -93,6 +93,7 @@ export async function carregarAcompanhamento() {
 
   const marcas: Record<CampoDeposito, boolean> = {
     poupanca: Boolean(mesAtual?.poupancaDepositado),
+    reserva: Boolean(mesAtual?.reservaDepositado),
     fundo: Boolean(mesAtual?.fundoDepositado),
     alttab: Boolean(mesAtual?.alttabDepositado),
     meta: Boolean(mesAtual?.metaDepositado),

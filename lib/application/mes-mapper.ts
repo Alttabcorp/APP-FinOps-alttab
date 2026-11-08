@@ -26,9 +26,13 @@ export type MesDTO = {
   fundoReal: number;
   alttabReal: number;
   poupancaReal: number;
+  reservaReal: number;
+  metaReal: number;
   poupancaEditado: boolean;
   fundoEditado: boolean;
   alttabEditado: boolean;
+  reservaEditado: boolean;
+  metaEditado: boolean;
   fechado: boolean;
   fechadoEm: string | null;
   depositos: Record<CampoMarca, boolean>;
@@ -62,9 +66,13 @@ export const mesParaEntrada = (mes: MesComItens): EntradaMes => {
       fundo: decimalParaNumero(mes.fundoReal),
       alttab: decimalParaNumero(mes.alttabReal),
       poupanca: decimalParaNumero(mes.poupancaReal),
+      reserva: decimalParaNumero(mes.reservaReal),
+      meta: decimalParaNumero(mes.metaReal),
       poupancaEditado: mes.poupancaEditado,
       fundoEditado: mes.fundoEditado,
       alttabEditado: mes.alttabEditado,
+      reservaEditado: mes.reservaEditado,
+      metaEditado: mes.metaEditado,
     },
   };
 };
@@ -88,14 +96,19 @@ export const mesParaDto = (mes: MesComItens): MesDTO => ({
   fundoReal: decimalParaNumero(mes.fundoReal),
   alttabReal: decimalParaNumero(mes.alttabReal),
   poupancaReal: decimalParaNumero(mes.poupancaReal),
+  reservaReal: decimalParaNumero(mes.reservaReal),
+  metaReal: decimalParaNumero(mes.metaReal),
   poupancaEditado: mes.poupancaEditado,
   fundoEditado: mes.fundoEditado,
   alttabEditado: mes.alttabEditado,
+  reservaEditado: mes.reservaEditado,
+  metaEditado: mes.metaEditado,
   fechado: mes.fechado,
   fechadoEm: mes.fechadoEm ? mes.fechadoEm.toISOString() : null,
   sobraAnteriorConfirmada: Boolean(mes.sobraAnteriorConfirmada),
   depositos: {
     poupanca: Boolean(mes.poupancaDepositado),
+    reserva: Boolean(mes.reservaDepositado),
     fundo: Boolean(mes.fundoDepositado),
     alttab: Boolean(mes.alttabDepositado),
     meta: Boolean(mes.metaDepositado),

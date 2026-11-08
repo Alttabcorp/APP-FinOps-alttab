@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Fraunces, Figtree } from "next/font/google";
+import { AtualizarAuto } from "@/components/atualizar-auto";
 import { InstalarApp } from "@/components/instalar-app";
 import { RegistrarSw } from "@/components/registrar-sw";
 import { Shell } from "@/components/shell";
@@ -48,6 +49,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </a>
         <Shell>{children}</Shell>
         <RegistrarSw />
+        <AtualizarAuto />
         <InstalarApp />
       </body>
     </html>

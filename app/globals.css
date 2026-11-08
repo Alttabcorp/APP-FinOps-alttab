@@ -3187,3 +3187,34 @@ body {
     transform: scale(0.94);
   }
 }
+
+/* Puxar para atualizar */
+.ptr {
+  position: fixed;
+  top: env(safe-area-inset-top);
+  left: 0;
+  right: 0;
+  z-index: 70;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.ptr-icone {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  background: var(--sheet);
+  color: var(--brand);
+  font-size: 1.3rem;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.25);
+}
+.ptr-icone.is-girando {
+  animation: ptr-gira 0.8s linear infinite;
+}
+@keyframes ptr-gira {
+  to {
+    transform: rotate(360deg);
+  }
+}

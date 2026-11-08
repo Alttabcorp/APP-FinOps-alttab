@@ -1,0 +1,7 @@
+-- AlterTable
+ALTER TABLE "MesFinanceiro" ADD COLUMN "reservaReal" DECIMAL(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE "MesFinanceiro" ADD COLUMN "metaReal" DECIMAL(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE "MesFinanceiro" ADD COLUMN "reservaEditado" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "MesFinanceiro" ADD COLUMN "metaEditado" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "MesFinanceiro" ADD COLUMN "reservaDepositado" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "MesFinanceiro" ADD COLUMN "reservaCreditado" DECIMAL(12,2) NOT NULL DEFAULT 0;

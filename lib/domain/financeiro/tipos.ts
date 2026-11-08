@@ -37,10 +37,14 @@ export type EntradaMes = {
     fundo: number;
     alttab: number;
     poupanca: number;
+    reserva?: number;
+    meta?: number;
     poupancaEditado: boolean;
     /** Ausente = valor informado (comportamento antigo). Falso = usa a sugestão dinâmica. */
     fundoEditado?: boolean;
     alttabEditado?: boolean;
+    reservaEditado?: boolean;
+    metaEditado?: boolean;
   };
   gastoPessoalAlvo?: number | null;
   reposicaoMeta?: number;
@@ -82,6 +86,8 @@ export type ResultadoMes = {
     };
     alttab: ParSugestaoReal;
     poupanca: ParSugestaoReal;
+    reserva: ParSugestaoReal;
+    meta: ParSugestaoReal;
     totalInvestido: number;
   };
   resumo: {

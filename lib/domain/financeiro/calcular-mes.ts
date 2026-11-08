@@ -95,7 +95,7 @@ export const calcularMes = (input: Partial<EntradaMes> = {}): ResultadoMes => {
   });
 
   // O que sobra depois de contas, cartão, feira, gasolina e poupança (10%) é dividido
-  // em partes iguais entre fundo imobiliário, Alttab e objetivo.
+  // em 4 partes iguais: reserva, fundo, empresa e meta.
   const gasolinaReserva = Math.max(gasolinaReal, valeTransporte);
   const feiraExtra = Math.max(0, feiraReal - valeAlimentacao);
   const faturaEstimada = cartaoFixo + cartaoParcelas + cartaoAvulso;
@@ -111,15 +111,20 @@ export const calcularMes = (input: Partial<EntradaMes> = {}): ResultadoMes => {
           (Number(input.reposicaoMeta) || 0) -
           (Number(input.gastoPessoalAlvo) || 0),
       );
-  const parteInvestir = Math.floor((disponivelInvestir / 3) * 100) / 100;
+  const parteInvestir = Math.floor((disponivelInvestir / 4) * 100) / 100;
   const fundoBase = parteInvestir;
+  const reservaSugestao = parteInvestir;
   const alttabSugestao = parteInvestir;
+  const metaSugestao = parteInvestir;
   const fundoSugestao = Math.round((parteInvestir + fundo.reaplicado) * 100) / 100;
 
   const fundoReal = inv.fundoEditado === false ? fundoSugestao : Number(inv.fundo) || 0;
   const alttabReal = inv.alttabEditado === false ? alttabSugestao : Number(inv.alttab) || 0;
+  // Reserva e meta: ausente ou falso = sugestão; só true trava o valor informado.
+  const reservaReal = inv.reservaEditado === true ? Number(inv.reserva) || 0 : reservaSugestao;
+  const metaReal = inv.metaEditado === true ? Number(inv.meta) || 0 : metaSugestao;
   const poupancaReal = inv.poupancaEditado ? Number(inv.poupanca) || 0 : poupancaSugestao;
-  const totalInvestido = fundoReal + alttabReal + poupancaReal;
+  const totalInvestido = fundoReal + alttabReal + poupancaReal + reservaReal + metaReal;
 
   const cartao = planejarCartao({
     // Teto do cartão = caixa das contas − o que já foi investido (regra da planilha).
@@ -139,13 +144,13 @@ export const calcularMes = (input: Partial<EntradaMes> = {}): ResultadoMes => {
     cartao: cartao.fatura,
     poupanca: poupancaSugestao,
     feira: Math.max(feiraReal, valeAlimentacao),
-    investimento: fundoSugestao + alttabSugestao,
+    investimento: reservaSugestao + fundoSugestao + alttabSugestao + metaSugestao,
     gastoPessoal: input.gastoPessoalAlvo,
     reposicaoMeta: input.reposicaoMeta,
   });
   const gastoPessoal = prioridade.find((etapa) => etapa.id === "pessoal")?.coberto ?? 0;
   const reposicaoMeta = prioridade.find((etapa) => etapa.id === "reposicao")?.coberto ?? 0;
-  const metaFinal = prioridade.find((etapa) => etapa.id === "meta")?.coberto ?? 0;
+  const metaFinal = metaReal;
 
   return {
     totalSaldo,
@@ -179,6 +184,8 @@ export const calcularMes = (input: Partial<EntradaMes> = {}): ResultadoMes => {
       },
       alttab: par(alttabSugestao, alttabReal),
       poupanca: par(poupancaSugestao, poupancaReal),
+      reserva: par(reservaSugestao, reservaReal),
+      meta: par(metaSugestao, metaReal),
       totalInvestido,
     },
     resumo: { ganhou, gasto, sobrou },

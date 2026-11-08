@@ -39,18 +39,17 @@ describe("calcularMes", () => {
     quase(r.totalSaldo, 5469.64);
     quase(r.ganhoMes, 6084.94);
     quase(r.saldoContas, 3921.71);
-    quase(r.investimentos.fundo.base, 308.78);
-    quase(r.investimentos.alttab.sugestao, 308.78);
+    quase(r.investimentos.fundo.base, 231.58);
+    quase(r.investimentos.alttab.sugestao, 231.58);
+    quase(r.investimentos.reserva.sugestao, 231.58);
+    quase(r.investimentos.meta.sugestao, 231.58);
     quase(r.investimentos.fundo.ajuste, 22.4);
-    quase(r.investimentos.fundo.sugestao, 331.18);
+    quase(r.investimentos.fundo.sugestao, 253.98);
     quase(r.investimentos.fundo.proximo, 0);
     expect(r.investimentos.fundo.atingiuAlvo).toBe(false);
     quase(r.investimentos.poupanca.sugestao, 546.964);
-    quase(
-      r.distribuicao.gastoPessoal + r.distribuicao.reposicaoMeta + r.distribuicao.metaFinal,
-      r.prioridade.find((etapa) => etapa.id === "investimento")?.caixaDepois ?? 0,
-    );
-    quase(r.distribuicao.gastoPessoal, (r.prioridade.find((etapa) => etapa.id === "investimento")?.caixaDepois ?? 0) * 0.45);
+    quase(r.distribuicao.metaFinal, r.investimentos.meta.real);
+    quase(r.investimentos.reserva.real, r.investimentos.reserva.sugestao);
   });
 
   it("reinveste o rendimento inteiro quando o caixa cobre as contas", () => {
@@ -64,10 +63,10 @@ describe("calcularMes", () => {
       investimentos: { fundo: 0, alttab: 0, poupanca: 0, poupancaEditado: true },
     });
 
-    quase(r.investimentos.fundo.base, 300);
+    quase(r.investimentos.fundo.base, 225);
     quase(r.investimentos.fundo.ajuste, 50);
     quase(r.rendimento.paraContas, 0);
-    quase(r.investimentos.fundo.sugestao, 350);
+    quase(r.investimentos.fundo.sugestao, 275);
     quase(r.investimentos.fundo.proximo, 50);
     expect(r.investimentos.fundo.atingiuAlvo).toBe(true);
     expect(r.rendimento.apertado).toBe(false);
@@ -81,9 +80,9 @@ describe("calcularMes", () => {
     });
 
     expect(r.investimentos.fundo.atingiuAlvo).toBe(false);
-    quase(r.investimentos.fundo.base, 600);
+    quase(r.investimentos.fundo.base, 450);
     quase(r.investimentos.fundo.ajuste, 40);
-    quase(r.investimentos.fundo.sugestao, 640);
+    quase(r.investimentos.fundo.sugestao, 490);
     quase(r.investimentos.fundo.proximo, 0);
   });
 
@@ -135,7 +134,7 @@ describe("calcularMes", () => {
     });
     quase(r.distribuicao.gastoPessoal, 400);
     quase(r.distribuicao.reposicaoMeta, 200);
-    quase(r.distribuicao.metaFinal, 66.68);
+    quase(r.distribuicao.metaFinal, 50);
   });
 
   it("usa o vale-transporte no caixa das contas e deixa o VA só na feira", () => {
@@ -165,9 +164,9 @@ describe("calcularMes", () => {
       investimentos: { fundo: 0, alttab: 0, poupanca: 0, poupancaEditado: true },
     });
     quase(cabe.saldoContas, 2200);
-    quase(cabe.despesasVariaveis.cartao.teto, 2200);
+    quase(cabe.despesasVariaveis.cartao.teto, 1400);
     quase(cabe.despesasVariaveis.cartao.fixo, 200);
-    quase(cabe.despesasVariaveis.cartao.disponivel, 1900);
+    quase(cabe.despesasVariaveis.cartao.disponivel, 1100);
     quase(cabe.despesasVariaveis.cartao.fatura, 300);
     expect(cabe.despesasVariaveis.cartao.estoura).toBe(false);
 
@@ -200,19 +199,21 @@ describe("calcularMes", () => {
 });
 
 describe("aportes dinâmicos", () => {
-  it("divide em três o que sobra depois de contas, cartão, feira, gasolina e poupança", () => {
+  it("divide em quatro o que sobra depois de contas, cartão, feira, gasolina e poupança", () => {
     const r = calcularMes({
       saldo: [{ nome: "Salário", valor: 5000 }],
       contas: [{ nome: "Aluguel", valor: 1000 }],
       despesasVariaveis: { feira: 0, cartao: 200, gasolina: 0 },
       investimentos: { fundo: 0, alttab: 0, poupanca: 0, poupancaEditado: false, fundoEditado: false, alttabEditado: false },
     });
-    // 5000 - 1000 (contas) - 200 (cartão avulso) - 500 (poupança 10%) = 3300 -> 1100 cada
+    // 5000 - 1000 (contas) - 200 (cartão avulso) - 500 (poupança 10%) = 3300 -> 825 cada
     quase(r.investimentos.poupanca.sugestao, 500);
-    quase(r.investimentos.fundo.sugestao, 1100);
-    quase(r.investimentos.alttab.sugestao, 1100);
-    quase(r.investimentos.fundo.real, 1100);
-    quase(r.investimentos.alttab.real, 1100);
+    quase(r.investimentos.fundo.sugestao, 825);
+    quase(r.investimentos.alttab.sugestao, 825);
+    quase(r.investimentos.reserva.sugestao, 825);
+    quase(r.investimentos.meta.sugestao, 825);
+    quase(r.investimentos.fundo.real, 825);
+    quase(r.investimentos.alttab.real, 825);
   });
 
   it("respeita o valor informado quando o aporte foi editado", () => {

@@ -26,10 +26,10 @@ describe("alertas e regras da planilha", () => {
     });
 
     quase(r.investimentos.poupanca.sugestao, 500);
-    expect(r.distribuicao.gastoPessoal).toBeGreaterThan(0);
-    const depoisInvestimento =
-      r.prioridade.find((etapa) => etapa.id === "investimento")?.caixaDepois ?? 0;
-    quase(r.distribuicao.gastoPessoal, depoisInvestimento * 0.45);
+    // Com a sobra dividida nas 4 caixinhas, a cascata de gasto pessoal fica zerada.
+    quase(r.investimentos.reserva.sugestao, 875);
+    quase(r.investimentos.meta.sugestao, 875);
+    quase(r.distribuicao.gastoPessoal, 0);
   });
 
   it("alerta parcela na última e fatura acima do teto", () => {
@@ -59,7 +59,8 @@ describe("alertas e regras da planilha", () => {
       investimentos: { fundo: 50, alttab: 100, poupanca: 300, poupancaEditado: true },
     });
     quase(r.saldoContas, 2000);
-    quase(r.despesasVariaveis.cartao.teto, 1550);
+    // Reserva e meta também entram no investido (1/4 da sobra cada).
+    quase(r.despesasVariaveis.cartao.teto, 700);
   });
 });
 

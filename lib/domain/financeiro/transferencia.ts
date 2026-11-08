@@ -102,6 +102,15 @@ export const montarRoteiroTransferencia = (
   );
   if (poupanca) linhas.push(poupanca);
 
+  const reserva = linhaDaConta(
+    "reserva",
+    "Reserva",
+    aporteDoMes(resultado.investimentos.reserva),
+    contaPorFinalidade(destinos.contas, "RESERVA"),
+    "Reserva de emergência",
+  );
+  if (reserva) linhas.push(reserva);
+
   const fundo = linhaDaConta(
     "fundo",
     "Fundo",
@@ -136,7 +145,7 @@ export const montarRoteiroTransferencia = (
   const meta = linhaDaConta(
     "meta",
     "Meta",
-    round2(resultado.distribuicao.metaFinal),
+    aporteDoMes(resultado.investimentos.meta),
     contaPorFinalidade(destinos.contas, "META"),
     "Meta",
   );
@@ -145,7 +154,7 @@ export const montarRoteiroTransferencia = (
   return linhas;
 };
 
-export const CAMPOS_DEPOSITO = ["poupanca", "fundo", "alttab", "meta"] as const;
+export const CAMPOS_DEPOSITO = ["poupanca", "reserva", "fundo", "alttab", "meta"] as const;
 
 export type CampoDeposito = (typeof CAMPOS_DEPOSITO)[number];
 

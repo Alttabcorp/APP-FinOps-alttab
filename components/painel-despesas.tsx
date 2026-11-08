@@ -74,6 +74,12 @@ export function PainelDespesas({
 }: Props) {
   const router = useRouter();
   const [mes, setMes] = useState(mesInicial);
+  // Sincroniza com o servidor: ao trocar de mês ou recarregar os dados, descarta o estado local antigo.
+  const [mesRecebido, setMesRecebido] = useState(mesInicial);
+  if (mesRecebido !== mesInicial) {
+    setMesRecebido(mesInicial);
+    setMes(mesInicial);
+  }
   const [aberto, setAberto] = useState(false);
   const [erro, setErro] = useState("");
   const [categoria, setCategoria] = useState<CategoriaVariavel | null>(mesInicial.fechado ? null : abrirCategoria);

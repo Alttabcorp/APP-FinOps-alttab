@@ -36,6 +36,12 @@ const soma = (itens: ItemDTO[]) => itens.reduce((acc, item) => acc + (Number(ite
 export function PainelGanhos({ competencia, mesInicial, sobrou, gasto }: Props) {
   const router = useRouter();
   const [mes, setMes] = useState(mesInicial);
+  // Sincroniza com o servidor: ao trocar de mês ou recarregar os dados, descarta o estado local antigo.
+  const [mesRecebido, setMesRecebido] = useState(mesInicial);
+  if (mesRecebido !== mesInicial) {
+    setMesRecebido(mesInicial);
+    setMes(mesInicial);
+  }
   const [status, setStatus] = useState("");
   const [aberto, setAberto] = useState(false);
   const [tipo, setTipo] = useState<TipoEntrada>("DINHEIRO");

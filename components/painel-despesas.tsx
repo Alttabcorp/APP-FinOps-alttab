@@ -85,6 +85,7 @@ export function PainelDespesas({
   const [categoria, setCategoria] = useState<CategoriaVariavel | null>(mesInicial.fechado ? null : abrirCategoria);
   const [valorGasto, setValorGasto] = useState(0);
   const [descGasto, setDescGasto] = useState("");
+  const [noCartao, setNoCartao] = useState(false);
   const [erroGasto, setErroGasto] = useState("");
   const [anualId, setAnualId] = useState<string | null>(null);
   const [cartaoAberto, setCartaoAberto] = useState(false);
@@ -135,16 +136,25 @@ export function PainelDespesas({
     if (!categoria) return;
     setErroGasto("");
     startTransition(async () => {
+      // Feira/gasolina pagas no cartão entram na fatura (conforme o fechamento), não no caixa de agora.
+      const viaCartao = noCartao && categoria !== "cartao";
       const resposta = await adicionarLancamentoAction({
         competencia,
-        categoria,
+        categoria: viaCartao ? "cartao" : categoria,
         valor: valorGasto,
-        descricao: descGasto,
+        descricao: viaCartao
+          ? [ROTULO_CATEGORIA[categoria], descGasto.trim()].filter(Boolean).join(" · ")
+          : descGasto,
       });
       if (resposta.ok) {
-        setStatus(`${formatarMoeda(valorGasto)} somados em ${ROTULO_CATEGORIA[categoria].toLowerCase()}.`);
+        setStatus(
+          viaCartao
+            ? `${formatarMoeda(valorGasto)} de ${ROTULO_CATEGORIA[categoria].toLowerCase()} somados na fatura do cartão.`
+            : `${formatarMoeda(valorGasto)} somados em ${ROTULO_CATEGORIA[categoria].toLowerCase()}.`,
+        );
         setValorGasto(0);
         setDescGasto("");
+        setNoCartao(false);
         router.refresh();
       } else setErroGasto(resposta.erro);
     });
@@ -526,13 +536,31 @@ export function PainelDespesas({
                 placeholder={categoria === "gasolina" ? "Ex.: Posto Shell" : "Ex.: Mercado do bairro"}
                 onChange={setDescGasto}
               />
+              {categoria !== "cartao" ? (
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={noCartao}
+                    onChange={(evento) => setNoCartao(evento.target.checked)}
+                  />
+                  <span>
+                    Paguei no cartão de crédito
+                    <span className="block text-xs text-mute">
+                      {noCartao
+                        ? `Entra na fatura de ${formatarNomeMes(faturaHoje)}, não no total de ${ROTULO_CATEGORIA[categoria].toLowerCase()}.`
+                        : "Marque se foi no crédito: o valor vai para a fatura."}
+                    </span>
+                  </span>
+                </label>
+              ) : null}
               {erroGasto ? (
                 <p className="text-sm text-outflow" role="alert">
                   {erroGasto}
                 </p>
               ) : null}
               <button type="submit" className="btn-primary" disabled={pendente}>
-                {pendente ? "Salvando…" : "Somar ao total"}
+                {pendente ? "Salvando…" : noCartao && categoria !== "cartao" ? "Somar na fatura" : "Somar ao total"}
               </button>
             </form>
             <div>

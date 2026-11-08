@@ -15,6 +15,18 @@ export const dynamic = "force-dynamic";
 
 type Props = { searchParams: Promise<{ mes?: string; add?: string }> };
 
+const nomeConta = (
+  contas: { finalidade: string; nome: string; recebePoupanca?: boolean }[],
+  finalidade: string,
+  fallback: string,
+) => {
+  if (finalidade === "POUPANCA") {
+    const marcada = contas.find((conta) => conta.recebePoupanca);
+    if (marcada) return marcada.nome;
+  }
+  return contas.find((conta) => conta.finalidade === finalidade)?.nome ?? fallback;
+};
+
 export default async function PaginaDespesas({ searchParams }: Props) {
   const { mes, add } = await searchParams;
   const competencia = mes && isCompetencia(mes) ? mes : competenciaAtual();
@@ -31,6 +43,17 @@ export default async function PaginaDespesas({ searchParams }: Props) {
   ]);
   const { resultado, dto } = folha;
   const inv = resultado.investimentos;
+  const contas = folha.contas;
+
+  const anuaisDoMes = dto.itens
+    .filter((item) => item.tipo === "ANUAL" && item.valor > 0.005)
+    .map((item) => ({
+      campo: `anual:${item.contaAnualId ?? item.id ?? item.nome}`,
+      rotulo: item.nome,
+      valor: item.valor,
+      sugestao: item.valor,
+      somenteLeitura: true as const,
+    }));
 
   return (
     <main id="conteudo">
@@ -55,9 +78,37 @@ export default async function PaginaDespesas({ searchParams }: Props) {
         tetoCartao={resultado.despesasVariaveis.cartao.teto}
         abrirCategoria={isCategoriaVariavel(add) ? add : null}
         aportes={[
-          { campo: "poupanca", rotulo: "Poupança", valor: inv.poupanca.real, sugestao: inv.poupanca.sugestao },
-          { campo: "fundo", rotulo: "Fundo imobiliário", valor: inv.fundo.real, sugestao: inv.fundo.sugestao },
-          { campo: "alttab", rotulo: "Alttab", valor: inv.alttab.real, sugestao: inv.alttab.sugestao },
+          {
+            campo: "poupanca",
+            rotulo: nomeConta(contas, "POUPANCA", "Poupança"),
+            valor: inv.poupanca.real,
+            sugestao: inv.poupanca.sugestao,
+          },
+          {
+            campo: "reserva",
+            rotulo: nomeConta(contas, "RESERVA", "Reserva de emergência"),
+            valor: inv.reserva.real,
+            sugestao: inv.reserva.sugestao,
+          },
+          {
+            campo: "fundo",
+            rotulo: nomeConta(contas, "INVESTIMENTO", "Fundo imobiliário"),
+            valor: inv.fundo.real,
+            sugestao: inv.fundo.sugestao,
+          },
+          {
+            campo: "alttab",
+            rotulo: nomeConta(contas, "EMPRESA", "Empresa"),
+            valor: inv.alttab.real,
+            sugestao: inv.alttab.sugestao,
+          },
+          {
+            campo: "meta",
+            rotulo: nomeConta(contas, "META", "Objetivo"),
+            valor: inv.meta.real,
+            sugestao: inv.meta.sugestao,
+          },
+          ...anuaisDoMes,
         ]}
       />
     </main>

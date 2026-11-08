@@ -7,6 +7,18 @@ export const dynamic = "force-dynamic";
 
 type Props = { searchParams: Promise<{ mes?: string }> };
 
+const nomeConta = (
+  contas: { finalidade: string; nome: string; recebePoupanca?: boolean }[],
+  finalidade: string,
+  fallback: string,
+) => {
+  if (finalidade === "POUPANCA") {
+    const marcada = contas.find((conta) => conta.recebePoupanca);
+    if (marcada) return marcada.nome;
+  }
+  return contas.find((conta) => conta.finalidade === finalidade)?.nome ?? fallback;
+};
+
 export default async function PaginaInicial({ searchParams }: Props) {
   const { mes } = await searchParams;
   const competencia = mes && isCompetencia(mes) ? mes : competenciaAtual();
@@ -18,6 +30,7 @@ export default async function PaginaInicial({ searchParams }: Props) {
   // Mesmo critério do roteiro de transferências: valor real; se vazio, a sugestão.
   const aporte = (par: { real: number; sugestao: number }) => (par.real > 0.005 ? par.real : par.sugestao);
   const fatura = folha.faturaCartao + folha.cartaoFixo + dto.cartaoReal;
+  const contas = folha.contas;
 
   return (
     <main id="conteudo">
@@ -32,17 +45,26 @@ export default async function PaginaInicial({ searchParams }: Props) {
         faturaCartao={fatura}
         poupancaSugerida={resultado.investimentos.poupanca.sugestao}
         contas={folha.contas.map((conta) => ({ id: conta.id, nome: conta.nome }))}
+        rotulos={{
+          poupanca: nomeConta(contas, "POUPANCA", "Poupança"),
+          reserva: nomeConta(contas, "RESERVA", "Reserva de emergência"),
+          fundo: nomeConta(contas, "INVESTIMENTO", "Fundo imobiliário"),
+          alttab: nomeConta(contas, "EMPRESA", "Empresa"),
+          meta: nomeConta(contas, "META", "Objetivo"),
+        }}
         sugestoes={{
           poupanca: resultado.investimentos.poupanca.sugestao,
+          reserva: resultado.investimentos.reserva.sugestao,
           fundo: resultado.investimentos.fundo.sugestao,
           alttab: resultado.investimentos.alttab.sugestao,
-          meta: resultado.distribuicao.metaFinal,
+          meta: resultado.investimentos.meta.sugestao,
         }}
         aportes={{
           poupanca: resultado.investimentos.poupanca.real,
+          reserva: aporte(resultado.investimentos.reserva),
           fundo: aporte(resultado.investimentos.fundo),
           alttab: aporte(resultado.investimentos.alttab),
-          meta: resultado.distribuicao.metaFinal,
+          meta: aporte(resultado.investimentos.meta),
         }}
         meta={
           meta

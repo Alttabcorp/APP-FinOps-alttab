@@ -28,7 +28,13 @@ type Props = {
   cartaoParcelas: number;
   cartaoFixo: number;
   sugestoes: { feira: number; gasolina: number };
-  aportes: { campo: "poupanca" | "fundo" | "alttab"; rotulo: string; valor: number; sugestao: number }[];
+  aportes: {
+    campo: "poupanca" | "reserva" | "fundo" | "alttab" | "meta" | string;
+    rotulo: string;
+    valor: number;
+    sugestao: number;
+    somenteLeitura?: boolean;
+  }[];
   lancamentos: LancamentoDTO[];
   abrirCategoria?: CategoriaVariavel | null;
   contasAnuais: ContaAnualDTO[];
@@ -179,14 +185,22 @@ export function PainelDespesas({
     });
   };
 
-  const alterarAporte = (campo: "poupanca" | "fundo" | "alttab", atual: number, novo: number) => {
+  const alterarAporte = (
+    campo: "poupanca" | "reserva" | "fundo" | "alttab" | "meta",
+    atual: number,
+    novo: number,
+  ) => {
     if (Math.abs(atual - novo) < 0.005) return;
     const proximo: MesDTO =
       campo === "poupanca"
         ? { ...mes, poupancaReal: novo, poupancaEditado: true }
-        : campo === "fundo"
-          ? { ...mes, fundoReal: novo, fundoEditado: true }
-          : { ...mes, alttabReal: novo, alttabEditado: true };
+        : campo === "reserva"
+          ? { ...mes, reservaReal: novo, reservaEditado: true }
+          : campo === "fundo"
+            ? { ...mes, fundoReal: novo, fundoEditado: true }
+            : campo === "alttab"
+              ? { ...mes, alttabReal: novo, alttabEditado: true }
+              : { ...mes, metaReal: novo, metaEditado: true };
     const jaDepositado = mes.depositos[campo];
     gravar(proximo, jaDepositado ? "Aporte atualizado e saldo da caixinha ajustado." : "Aporte atualizado.", () => {
       // Se o depósito já estava marcado, reajusta o saldo creditado para o novo valor.
@@ -455,22 +469,36 @@ export function PainelDespesas({
                 <span className="min-w-0 flex-1">
                   <span className="block truncate">{item.rotulo}</span>
                   <span className="block text-xs text-mute">
-                    Sugerido {formatarMoeda(item.sugestao)}
-                    {mes.depositos[item.campo] ? " · depósito marcado" : ""}
+                    {item.somenteLeitura
+                      ? "Parcela do mês (conta anual)"
+                      : `Sugerido ${formatarMoeda(item.sugestao)}`}
+                    {!item.somenteLeitura && item.campo in mes.depositos && mes.depositos[item.campo as keyof typeof mes.depositos]
+                      ? " · depósito marcado"
+                      : ""}
                   </span>
                 </span>
-                <div className="ganho-valor">
-                  <CampoMoeda
-                    id={`aporte-${item.campo}`}
-                    label={`Aporte em ${item.rotulo}`}
-                    rotuloVisivel={false}
-                    compact
-                    value={item.valor}
-                    disabled={fechado || pendente}
-                    onChange={() => undefined}
-                    onCommit={(novo) => alterarAporte(item.campo, item.valor, novo)}
-                  />
-                </div>
+                {item.somenteLeitura ? (
+                  <span className="money shrink-0 text-sm">{formatarMoeda(item.valor)}</span>
+                ) : (
+                  <div className="ganho-valor">
+                    <CampoMoeda
+                      id={`aporte-${item.campo}`}
+                      label={`Aporte em ${item.rotulo}`}
+                      rotuloVisivel={false}
+                      compact
+                      value={item.valor}
+                      disabled={fechado || pendente}
+                      onChange={() => undefined}
+                      onCommit={(novo) =>
+                        alterarAporte(
+                          item.campo as "poupanca" | "reserva" | "fundo" | "alttab" | "meta",
+                          item.valor,
+                          novo,
+                        )
+                      }
+                    />
+                  </div>
+                )}
               </li>
             ))}
           </ul>,

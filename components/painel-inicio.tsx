@@ -20,8 +20,9 @@ type Props = {
   tetoCartao: number;
   faturaCartao: number;
   poupancaSugerida: number;
-  aportes: { poupanca: number; fundo: number; alttab: number; meta: number };
-  sugestoes: { poupanca: number; fundo: number; alttab: number; meta: number };
+  aportes: { poupanca: number; reserva: number; fundo: number; alttab: number; meta: number };
+  sugestoes: { poupanca: number; reserva: number; fundo: number; alttab: number; meta: number };
+  rotulos: { poupanca: string; reserva: string; fundo: string; alttab: string; meta: string };
   contas: { id: string; nome: string }[];
   meta: { nome: string; saldo: number; objetivo: number };
 };
@@ -42,6 +43,7 @@ export function PainelInicio({
   poupancaSugerida,
   aportes,
   sugestoes,
+  rotulos,
   contas: caixinhas,
   meta,
 }: Props) {
@@ -68,10 +70,11 @@ export function PainelInicio({
 
   const outras: Linha[] = [
     { id: "cartao", rotulo: "Fatura do cartão", valor: faturaCartao, feito: mes.depositos.cartao, grupo: "Cartão" },
-    { id: "poupanca", rotulo: "Poupança", valor: aportes.poupanca, sugerido: sugestoes.poupanca, feito: mes.depositos.poupanca, grupo: "Investimentos" },
-    { id: "fundo", rotulo: "Fundo imobiliário", valor: aportes.fundo, sugerido: sugestoes.fundo, feito: mes.depositos.fundo, grupo: "Investimentos" },
-    { id: "alttab", rotulo: "Alttab", valor: aportes.alttab, sugerido: sugestoes.alttab, feito: mes.depositos.alttab, grupo: "Investimentos" },
-    { id: "meta", rotulo: `Objetivo (${meta.nome})`, valor: aportes.meta, sugerido: sugestoes.meta, feito: mes.depositos.meta, grupo: "Investimentos" },
+    { id: "poupanca", rotulo: rotulos.poupanca, valor: aportes.poupanca, sugerido: sugestoes.poupanca, feito: mes.depositos.poupanca, grupo: "Investimentos" },
+    { id: "reserva", rotulo: rotulos.reserva, valor: aportes.reserva, sugerido: sugestoes.reserva, feito: mes.depositos.reserva, grupo: "Investimentos" },
+    { id: "fundo", rotulo: rotulos.fundo, valor: aportes.fundo, sugerido: sugestoes.fundo, feito: mes.depositos.fundo, grupo: "Investimentos" },
+    { id: "alttab", rotulo: rotulos.alttab, valor: aportes.alttab, sugerido: sugestoes.alttab, feito: mes.depositos.alttab, grupo: "Investimentos" },
+    { id: "meta", rotulo: rotulos.meta, valor: aportes.meta, sugerido: sugestoes.meta, feito: mes.depositos.meta, grupo: "Investimentos" },
   ].filter((linha) => TEM(linha.valor));
 
   const linhas = [...contas, ...outras];

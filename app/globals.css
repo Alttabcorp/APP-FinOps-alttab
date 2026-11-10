@@ -3072,15 +3072,28 @@ body {
 /* Janelas viram folhas na parte de baixo do celular */
 @media (max-width: 40rem) {
   dialog.modal[open] {
+    position: fixed;
+    inset: auto 0 0 0;
     width: 100% !important;
     max-width: 100% !important;
-    max-height: 92dvh;
-    margin: auto 0 0 0;
+    /* Sobe o suficiente para caber o formulário; o corpo rola por dentro */
+    height: min(92dvh, 100%);
+    max-height: min(92dvh, 100%);
+    margin: 0;
     border-radius: 1.1rem 1.1rem 0 0;
     padding-bottom: env(safe-area-inset-bottom);
+    /* Acima da barra inferior e do botão + */
+    z-index: 80;
   }
   .modal-body {
-    max-height: 72dvh;
+    flex: 1 1 auto;
+    max-height: none;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .modal::backdrop {
+    /* Cobre a barra inferior também */
+    background: rgb(16 36 30 / 0.55);
   }
 }
 

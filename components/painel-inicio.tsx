@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { BotaoEntrada } from "@/components/botao-entrada";
+import { BotaoFlutuante } from "@/components/botao-flutuante";
 import { marcarDepositoAction, salvarMesAction } from "@/app/actions/mes";
 import { ehAPagar } from "@/lib/application/checklist";
 import type { MesDTO } from "@/lib/application/mes-mapper";
@@ -47,6 +49,7 @@ export function PainelInicio({
   contas: caixinhas,
   meta,
 }: Props) {
+  const router = useRouter();
   const [mes, setMes] = useState(mesInicial);
   // Sincroniza com o servidor: ao trocar de mês ou recarregar os dados, descarta o estado local antigo.
   const [mesRecebido, setMesRecebido] = useState(mesInicial);
@@ -134,12 +137,6 @@ export function PainelInicio({
           </Link>
           <Link className="btn" href={`/?mes=${avancarCompetencia(competencia, 1)}`} aria-label="Próximo mês">
             ›
-          </Link>
-          <Link className="btn" href={`/despesas?mes=${competencia}&add=feira`}>
-            + Feira
-          </Link>
-          <Link className="btn" href={`/despesas?mes=${competencia}&add=gasolina`}>
-            + Gasolina
           </Link>
           <Link className="btn" href="/transacoes">
             Transações
@@ -284,6 +281,22 @@ export function PainelInicio({
             ))
         )}
       </section>
+
+      {mes.fechado ? null : (
+        <BotaoFlutuante
+          rotulo="Adicionar gasto"
+          acoes={[
+            {
+              rotulo: "Feira",
+              onClick: () => router.push(`/despesas?mes=${competencia}&add=feira`),
+            },
+            {
+              rotulo: "Gasolina",
+              onClick: () => router.push(`/despesas?mes=${competencia}&add=gasolina`),
+            },
+          ]}
+        />
+      )}
     </article>
   );
 }

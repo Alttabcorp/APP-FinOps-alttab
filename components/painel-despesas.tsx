@@ -308,6 +308,7 @@ export function PainelDespesas({
           className="btn text-xs"
           onClick={() => {
             setErroGasto("");
+            setNoCartao(false);
             setCategoria(cat);
           }}
         >
@@ -512,11 +513,32 @@ export function PainelDespesas({
 
       {fechado ? null : (
         <BotaoFlutuante
-          rotulo="Nova despesa"
-          onClick={() => {
-            setErro("");
-            setAberto(true);
-          }}
+          rotulo="Adicionar gasto"
+          acoes={[
+            {
+              rotulo: "Nova despesa",
+              onClick: () => {
+                setErro("");
+                setAberto(true);
+              },
+            },
+            {
+              rotulo: "Feira",
+              onClick: () => {
+                setErroGasto("");
+                setNoCartao(false);
+                setCategoria("feira");
+              },
+            },
+            {
+              rotulo: "Gasolina",
+              onClick: () => {
+                setErroGasto("");
+                setNoCartao(false);
+                setCategoria("gasolina");
+              },
+            },
+          ]}
         />
       )}
 
@@ -565,22 +587,33 @@ export function PainelDespesas({
                 onChange={setDescGasto}
               />
               {categoria !== "cartao" ? (
-                <label className="flex items-start gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    className="mt-1"
-                    checked={noCartao}
-                    onChange={(evento) => setNoCartao(evento.target.checked)}
-                  />
-                  <span>
-                    Paguei no cartão de crédito
-                    <span className="block text-xs text-mute">
-                      {noCartao
-                        ? `Entra na fatura de ${formatarNomeMes(faturaHoje)}, não no total de ${ROTULO_CATEGORIA[categoria].toLowerCase()}.`
-                        : "Marque se foi no crédito: o valor vai para a fatura."}
+                <fieldset className="tipo-conta" aria-label="Como pagou">
+                  <legend className="sr-only">Como pagou</legend>
+                  <label className={`tipo-conta-opcao ${!noCartao ? "is-ativo" : ""}`}>
+                    <input
+                      type="radio"
+                      name="pagamento-variavel"
+                      checked={!noCartao}
+                      onChange={() => setNoCartao(false)}
+                    />
+                    <span className="tipo-conta-rotulo">Dinheiro</span>
+                    <span className="tipo-conta-detalhe">
+                      Soma no total de {ROTULO_CATEGORIA[categoria].toLowerCase()} deste mês.
                     </span>
-                  </span>
-                </label>
+                  </label>
+                  <label className={`tipo-conta-opcao ${noCartao ? "is-ativo" : ""}`}>
+                    <input
+                      type="radio"
+                      name="pagamento-variavel"
+                      checked={noCartao}
+                      onChange={() => setNoCartao(true)}
+                    />
+                    <span className="tipo-conta-rotulo">Cartão de crédito</span>
+                    <span className="tipo-conta-detalhe">
+                      Entra na fatura de {formatarNomeMes(faturaHoje)}.
+                    </span>
+                  </label>
+                </fieldset>
               ) : null}
               {erroGasto ? (
                 <p className="text-sm text-outflow" role="alert">

@@ -3171,12 +3171,26 @@ body {
 }
 
 /* Botão flutuante (+) no celular; no desktop vale o botão do cabeçalho */
+.fab-grupo,
 .fab {
   display: none;
 }
 @media (max-width: 40rem) {
   .novo-topo {
     display: none;
+  }
+  .fab-grupo {
+    position: fixed;
+    right: 1rem;
+    bottom: calc(4.75rem + env(safe-area-inset-bottom));
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.55rem;
+  }
+  .fab-grupo .fab {
+    position: static;
   }
   .fab {
     position: fixed;
@@ -3198,6 +3212,28 @@ body {
   }
   .fab:active {
     transform: scale(0.94);
+  }
+  .fab-grupo.is-aberto .fab {
+    background: var(--ink);
+  }
+  .fab-menu {
+    display: grid;
+    gap: 0.45rem;
+    justify-items: end;
+  }
+  .fab-opcao {
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--sheet);
+    color: var(--ink);
+    padding: 0.65rem 1rem;
+    font-size: 0.92rem;
+    font-weight: 600;
+    box-shadow: 0 8px 18px rgb(0 0 0 / 0.18);
+    cursor: pointer;
+  }
+  .fab-opcao:active {
+    transform: scale(0.97);
   }
 }
 

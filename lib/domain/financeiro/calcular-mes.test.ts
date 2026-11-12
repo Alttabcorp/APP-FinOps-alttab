@@ -152,6 +152,39 @@ describe("calcularMes", () => {
     quase(r.saldoContas, 900);
     quase(r.despesasVariaveis.feira.sugestao, 400);
     quase(r.valeAlimentacao, 400);
+    // VA não infla ganhou/sobra; VT sim (é dinheiro remanejável).
+    quase(r.resumo.ganhou, 1100);
+    quase(r.ganhoMes, 1500);
+  });
+
+  it("na sobra, o VA cobre a feira e o VT continua como dinheiro livre", () => {
+    const r = calcularMes({
+      saldo: [{ nome: "Salário", valor: 2000 }],
+      extra: [
+        { nome: "VT", valor: 150, papel: "VALE_TRANSPORTE" },
+        { nome: "VA", valor: 400, papel: "VALE_ALIMENTACAO" },
+      ],
+      contas: [{ nome: "Internet", valor: 500 }],
+      despesasVariaveis: { feira: 450, cartao: 0, gasolina: 0 },
+      investimentos: {
+        fundo: 0,
+        alttab: 0,
+        poupanca: 0,
+        poupancaEditado: true,
+        fundoEditado: true,
+        alttabEditado: true,
+        reservaEditado: true,
+        metaEditado: true,
+        reserva: 0,
+        meta: 0,
+      },
+    });
+
+    // ganhou = 2000 + 150 (VT), sem os 400 de VA
+    quase(r.resumo.ganhou, 2150);
+    // gasto = 500 + 50 (feira além do VA)
+    quase(r.resumo.gasto, 550);
+    quase(r.resumo.sobrou, 1600);
   });
 
   it("usa o que sobra depois das contas como teto do cartão e avisa se estourar", () => {

@@ -133,8 +133,13 @@ export const calcularMes = (input: Partial<EntradaMes> = {}): ResultadoMes => {
     parcelas: cartaoParcelas,
     avulso: cartaoAvulso,
   });
-  const ganhou = ganhoMes;
-  const gasto = gastoMensal + totalInvestido + feiraReal + cartao.fatura + gasolinaReal;
+  // Resumo em dinheiro livre:
+  // - VA é cartão de débito só para feira: não entra no "ganhou" nem na sobra.
+  // - VT é dinheiro remanejável: entra no ganho e na sobra.
+  // - Da feira, só o que passou do VA sai do caixa.
+  const feiraNoCaixa = Math.max(0, feiraReal - valeAlimentacao);
+  const ganhou = ganhoMes - valeAlimentacao;
+  const gasto = gastoMensal + totalInvestido + feiraNoCaixa + cartao.fatura + gasolinaReal;
   const sobrou = ganhou - gasto;
 
   const prioridade = priorizarCaixa({

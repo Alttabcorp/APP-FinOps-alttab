@@ -52,15 +52,31 @@ describe("alertas e regras da planilha", () => {
     expect(alertas.some((a) => a.id.startsWith("parcela-fim-"))).toBe(true);
   });
 
-  it("o investido reduz o teto do cartão", () => {
+  it("aportes não reduzem o teto — fatura tem prioridade sobre investimentos", () => {
     const r = calcularMes({
       saldo: [{ nome: "Salário", valor: 3000 }],
       contas: [{ nome: "Casa", valor: 1000 }],
       investimentos: { fundo: 50, alttab: 100, poupanca: 300, poupancaEditado: true },
     });
     quase(r.saldoContas, 2000);
-    // Reserva e meta também entram no investido (1/4 da sobra cada).
-    quase(r.despesasVariaveis.cartao.teto, 700);
+    quase(r.despesasVariaveis.cartao.teto, 2000);
+  });
+
+  it("avisa quando a fatura aberta quase compromete o pagamento no mês seguinte", () => {
+    const r = calcularMes({
+      saldo: [{ nome: "Salário", valor: 2000 }],
+      contas: [{ nome: "Casa", valor: 500 }],
+      cartaoFixo: 500,
+      cartaoParcelas: 800,
+      despesasVariaveis: { feira: 0, cartao: 0, gasolina: 0 },
+      investimentos: { fundo: 0, alttab: 0, poupanca: 0, poupancaEditado: true },
+    });
+    // teto 1500, fatura 1300 → 86,7% do teto
+    quase(r.despesasVariaveis.cartao.teto, 1500);
+    quase(r.despesasVariaveis.cartao.fatura, 1300);
+    expect(r.despesasVariaveis.cartao.estoura).toBe(false);
+    const alertas = alertasDoMes({ competencia: "2026-02", resultado: r });
+    expect(alertas.some((a) => a.id === "cartao-pagamento-proximo")).toBe(true);
   });
 });
 

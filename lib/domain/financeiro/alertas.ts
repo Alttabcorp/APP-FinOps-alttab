@@ -48,7 +48,21 @@ export const alertasDoMes = ({ competencia, resultado, parcelas = [] }: EntradaA
     lista.push({
       id: "cartao-teto",
       severidade: "critico",
-      mensagem: "Fatura do cartão acima do teto (sobra após contas).",
+      mensagem:
+        "Fatura acima do teto (renda estável após contas). Essa fatura é paga no mês seguinte — pode faltar caixa.",
+      href: `/cartao?mes=${mesQ}`,
+    });
+  } else if (
+    dv.cartao.teto > 0.005 &&
+    dv.cartao.fatura > 0.005 &&
+    dv.cartao.fatura / dv.cartao.teto >= 0.85
+  ) {
+    // Ainda cabe, mas a fatura aberta já compromete quase todo o caixa estável do mês seguinte.
+    lista.push({
+      id: "cartao-pagamento-proximo",
+      severidade: "aviso",
+      mensagem:
+        "Com essa fatura, o próximo mês pode apertar: a renda que se repete quase não cobre o pagamento.",
       href: `/cartao?mes=${mesQ}`,
     });
   }

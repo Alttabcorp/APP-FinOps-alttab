@@ -34,6 +34,7 @@ enum FinalidadeConta {
 enum TipoRenda {
   EMPREGO
   BICO
+  VENDA
   RENDIMENTO
   VALE_TRANSPORTE
   VALE_ALIMENTACAO

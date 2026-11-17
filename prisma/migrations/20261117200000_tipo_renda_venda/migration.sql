@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "TipoRenda" ADD VALUE IF NOT EXISTS 'VENDA';

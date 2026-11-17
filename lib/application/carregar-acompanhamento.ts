@@ -1,7 +1,7 @@
 import { listarComprasCartao, listarRecorrentesCartao } from "@/lib/application/cartao-service";
 import { listarContas } from "@/lib/application/conta-service";
 import { listarEmprestimosMeta } from "@/lib/application/emprestimo-meta-service";
-import { calcularMesPersistido } from "@/lib/application/mes-mapper";
+import { calcularMesPersistido, incluirItensComFonte } from "@/lib/application/mes-mapper";
 import { prisma } from "@/lib/db/prisma";
 import { faturaDoMes, somarRecorrentes } from "@/lib/domain/financeiro/cartao";
 import { somarSaldos } from "@/lib/domain/financeiro/conta";
@@ -18,7 +18,7 @@ import { obterPreferenciaCasa } from "@/lib/application/renda-service";
 export async function carregarAcompanhamento() {
   const [meses, compras, recorrentes, preferencia, emprestimos, contas] = await Promise.all([
     prisma.mesFinanceiro.findMany({
-      include: { itens: { orderBy: { ordem: "asc" } } },
+      include: incluirItensComFonte,
       orderBy: { competencia: "asc" },
     }),
     listarComprasCartao(),

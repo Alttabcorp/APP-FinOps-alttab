@@ -1,9 +1,19 @@
-import type { ItemFinanceiro as ItemPrisma, MesFinanceiro, PapelExtra, TipoItem } from "@prisma/client";
+import type { ItemFinanceiro as ItemPrisma, MesFinanceiro, PapelExtra, TipoItem, TipoRenda } from "@prisma/client";
 import { calcularMes } from "@/lib/domain/financeiro/calcular-mes";
 import type { CampoMarca } from "@/lib/domain/financeiro/transferencia";
 import type { EntradaMes, ItemFinanceiro, ResultadoMes } from "@/lib/domain/financeiro/tipos";
 
-export type MesComItens = MesFinanceiro & { itens: ItemPrisma[] };
+type ItemComFonte = ItemPrisma & { fonteRenda?: { tipo: TipoRenda } | null };
+
+export type MesComItens = MesFinanceiro & { itens: ItemComFonte[] };
+
+/** Include padrão: itens + tipo da fonte (para teto sem bico). */
+export const incluirItensComFonte = {
+  itens: {
+    orderBy: { ordem: "asc" as const },
+    include: { fonteRenda: { select: { tipo: true } } },
+  },
+};
 
 export type ItemDTO = {
   id?: string;
@@ -41,6 +51,11 @@ export type MesDTO = {
 
 const decimalParaNumero = (valor: { toString(): string } | number) => Number(valor);
 
+const itemEhEstavel = (item: ItemComFonte): boolean => {
+  // Bico pontual não entra no teto; emprego e saldo sem fonte (legado) contam como estáveis.
+  return item.fonteRenda?.tipo !== "BICO";
+};
+
 export const mesParaEntrada = (mes: MesComItens): EntradaMes => {
   const porTipo = (tipo: TipoItem): ItemFinanceiro[] =>
     mes.itens
@@ -49,6 +64,7 @@ export const mesParaEntrada = (mes: MesComItens): EntradaMes => {
         nome: item.nome,
         valor: decimalParaNumero(item.valor),
         papel: item.papel,
+        ...(tipo === "SALDO" ? { estavel: itemEhEstavel(item) } : {}),
       }));
 
   return {

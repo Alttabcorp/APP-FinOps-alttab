@@ -61,6 +61,8 @@ export const calcularMes = (input: Partial<EntradaMes> = {}): ResultadoMes => {
   };
 
   const totalSaldo = somarItens(saldo);
+  const rendaEstavel = somarItens(saldo.filter((item) => item.estavel !== false));
+  const rendaAvulsa = Math.max(0, totalSaldo - rendaEstavel);
   const totalExtra = somarItens(extra);
   const { valeTransporte, valeAlimentacao, proventoFundo, proventoPoupanca } = identificarExtras(extra);
   const ganhoMes = totalSaldo + totalExtra;
@@ -86,6 +88,8 @@ export const calcularMes = (input: Partial<EntradaMes> = {}): ResultadoMes => {
   });
 
   const saldoContas = caixaOperacional + rendimento.paraContas - gastoMensal;
+  // Base do teto: só renda que se repete + VT (bico não libera teto que o mês seguinte não paga).
+  const saldoContasEstavel = rendaEstavel + valeTransporte + rendimento.paraContas - gastoMensal;
 
   const poupancaSugestao = totalSaldo * 0.1 + rendimento.reinvestidoPoupanca;
   const fundo = planejarFundo({
@@ -94,8 +98,7 @@ export const calcularMes = (input: Partial<EntradaMes> = {}): ResultadoMes => {
     reinvestidoFundo: rendimento.reinvestidoFundo,
   });
 
-  // O que sobra depois de contas, cartão, feira, gasolina e poupança (10%) é dividido
-  // em 4 partes iguais: reserva, fundo, empresa e meta.
+  // Ordem depois das contas: fatura do cartão → poupança 10% → o que sobra em 4 aportes.
   const gasolinaReserva = Math.max(gasolinaReal, valeTransporte);
   const feiraExtra = Math.max(0, feiraReal - valeAlimentacao);
   const faturaEstimada = cartaoFixo + cartaoParcelas + cartaoAvulso;
@@ -126,9 +129,11 @@ export const calcularMes = (input: Partial<EntradaMes> = {}): ResultadoMes => {
   const poupancaReal = inv.poupancaEditado ? Number(inv.poupanca) || 0 : poupancaSugestao;
   const totalInvestido = fundoReal + alttabReal + poupancaReal + reservaReal + metaReal;
 
+  // Teto = sobra estável após contas (antes de aportes). Aportes não reduzem o teto:
+  // a fatura tem prioridade sobre reserva/fundo/empresa/meta.
+  const tetoCartao = Math.max(0, saldoContasEstavel);
   const cartao = planejarCartao({
-    // Teto do cartão = caixa das contas − o que já foi investido (regra da planilha).
-    saldoContas: saldoContas - totalInvestido,
+    saldoContas: tetoCartao,
     fixo: cartaoFixo,
     parcelas: cartaoParcelas,
     avulso: cartaoAvulso,
@@ -159,6 +164,8 @@ export const calcularMes = (input: Partial<EntradaMes> = {}): ResultadoMes => {
 
   return {
     totalSaldo,
+    rendaEstavel,
+    rendaAvulsa,
     totalExtra,
     ganhoMes,
     valeTransporte,
@@ -171,6 +178,7 @@ export const calcularMes = (input: Partial<EntradaMes> = {}): ResultadoMes => {
     totalAnual,
     gastoMensal,
     saldoContas,
+    saldoContasEstavel,
     despesasVariaveis: {
       feira: par(valeAlimentacao, feiraReal),
       cartao: {

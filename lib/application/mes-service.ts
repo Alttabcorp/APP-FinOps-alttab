@@ -2,7 +2,13 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { registrarTransacao } from "@/lib/application/transacao-service";
 import { progressoPagamento } from "@/lib/application/checklist";
-import { calcularMesPersistido, mesParaDto, type MesComItens, type MesDTO } from "@/lib/application/mes-mapper";
+import {
+  calcularMesPersistido,
+  incluirItensComFonte,
+  mesParaDto,
+  type MesComItens,
+  type MesDTO,
+} from "@/lib/application/mes-mapper";
 import { avancarCompetencia, formatarNomeMes, isCompetencia } from "@/lib/domain/financeiro/competencia";
 import {
   aplicarValoresDoMesAnterior,
@@ -21,7 +27,7 @@ import { faturaDoMes, somarRecorrentes } from "@/lib/domain/financeiro/cartao";
 import { itensPadrao } from "@/lib/domain/financeiro/padroes";
 import type { TipoItem } from "@/lib/domain/financeiro/tipos";
 
-const incluirItens = { itens: { orderBy: { ordem: "asc" as const } } };
+const incluirItens = incluirItensComFonte;
 
 const ERRO_MES_FECHADO = "Este mês está fechado. Reabra para editar.";
 

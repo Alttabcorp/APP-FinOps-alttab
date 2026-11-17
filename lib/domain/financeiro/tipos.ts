@@ -20,6 +20,11 @@ export type ItemFinanceiro = {
   nome: string;
   valor: number;
   papel?: PapelExtra | null;
+  /**
+   * Renda que se repete (emprego). `false` = bico/pontual — não entra no teto do cartão.
+   * Ausente = trata como estável (compatível com testes e itens sem fonte).
+   */
+  estavel?: boolean;
 };
 
 export type EntradaMes = {
@@ -60,6 +65,10 @@ export type ParSugestaoReal = {
 
 export type ResultadoMes = {
   totalSaldo: number;
+  /** Soma do saldo marcado como estável (sem bicos). */
+  rendaEstavel: number;
+  /** Bicos / renda pontual (não entra no teto). */
+  rendaAvulsa: number;
   totalExtra: number;
   ganhoMes: number;
   valeTransporte: number;
@@ -72,6 +81,8 @@ export type ResultadoMes = {
   totalAnual: number;
   gastoMensal: number;
   saldoContas: number;
+  /** Caixa após contas só com renda estável + VT (base do teto do cartão). */
+  saldoContasEstavel: number;
   despesasVariaveis: {
     feira: ParSugestaoReal;
     cartao: ParSugestaoReal & PlanoCartao;

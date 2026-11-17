@@ -187,7 +187,7 @@ describe("calcularMes", () => {
     quase(r.resumo.sobrou, 1600);
   });
 
-  it("usa o que sobra depois das contas como teto do cartão e avisa se estourar", () => {
+  it("usa a renda estável após contas como teto do cartão e avisa se estourar", () => {
     const cabe = calcularMes({
       saldo: [{ nome: "Salário", valor: 3000 }],
       contas: [{ nome: "Internet", valor: 800 }],
@@ -197,9 +197,9 @@ describe("calcularMes", () => {
       investimentos: { fundo: 0, alttab: 0, poupanca: 0, poupancaEditado: true },
     });
     quase(cabe.saldoContas, 2200);
-    quase(cabe.despesasVariaveis.cartao.teto, 1400);
+    quase(cabe.despesasVariaveis.cartao.teto, 2200);
     quase(cabe.despesasVariaveis.cartao.fixo, 200);
-    quase(cabe.despesasVariaveis.cartao.disponivel, 1100);
+    quase(cabe.despesasVariaveis.cartao.disponivel, 1900);
     quase(cabe.despesasVariaveis.cartao.fatura, 300);
     expect(cabe.despesasVariaveis.cartao.estoura).toBe(false);
 
@@ -215,6 +215,26 @@ describe("calcularMes", () => {
     quase(estoura.despesasVariaveis.cartao.fatura, 300);
     expect(estoura.despesasVariaveis.cartao.estoura).toBe(true);
     quase(estoura.despesasVariaveis.cartao.cabe, 0);
+  });
+
+  it("bico não infla o teto do cartão", () => {
+    const r = calcularMes({
+      saldo: [
+        { nome: "Salário", valor: 2000, estavel: true },
+        { nome: "Bico", valor: 1500, estavel: false },
+      ],
+      contas: [{ nome: "Casa", valor: 500 }],
+      cartaoFixo: 200,
+      despesasVariaveis: { feira: 0, cartao: 100, gasolina: 0 },
+      investimentos: { fundo: 0, alttab: 0, poupanca: 0, poupancaEditado: true },
+    });
+    quase(r.rendaEstavel, 2000);
+    quase(r.rendaAvulsa, 1500);
+    quase(r.saldoContas, 3000);
+    quase(r.saldoContasEstavel, 1500);
+    quase(r.despesasVariaveis.cartao.teto, 1500);
+    quase(r.despesasVariaveis.cartao.fatura, 300);
+    quase(r.despesasVariaveis.cartao.cabe, 1200);
   });
 
   it("identifica extras pelo nome quando o papel não vem preenchido", () => {

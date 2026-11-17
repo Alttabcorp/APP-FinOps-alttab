@@ -78,6 +78,24 @@ describe("alertas e regras da planilha", () => {
     const alertas = alertasDoMes({ competencia: "2026-02", resultado: r });
     expect(alertas.some((a) => a.id === "cartao-pagamento-proximo")).toBe(true);
   });
+
+  it("avisa quando o vencimento da fatura está perto e ainda não foi paga", () => {
+    const r = calcularMes({
+      saldo: [{ nome: "Salário", valor: 3000 }],
+      contas: [{ nome: "Casa", valor: 500 }],
+      cartaoFixo: 200,
+      despesasVariaveis: { feira: 0, cartao: 100, gasolina: 0 },
+      investimentos: { fundo: 0, alttab: 0, poupanca: 0, poupancaEditado: true },
+    });
+    const alertas = alertasDoMes({
+      competencia: "2026-12",
+      resultado: r,
+      diaPagamento: 14,
+      cartaoPago: false,
+      hoje: { ano: 2026, mes: 12, dia: 12 },
+    });
+    expect(alertas.some((a) => a.id === "cartao-vencimento")).toBe(true);
+  });
 });
 
 const quase = (obtido: number, esperado: number) => {

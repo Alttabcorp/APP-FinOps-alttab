@@ -5,6 +5,7 @@ import {
   adicionarLancamento,
   removerLancamento,
   salvarDiaFechamentoCartao,
+  salvarDiaPagamentoCartao,
   type CategoriaVariavel,
 } from "@/lib/application/lancamento-service";
 
@@ -52,5 +53,15 @@ export async function salvarDiaFechamentoAction(dia: number): Promise<AcaoLancam
     return { ok: true };
   } catch (erro) {
     return falha(erro, "Não foi possível salvar o dia de fechamento.");
+  }
+}
+
+export async function salvarDiaPagamentoAction(dia: number): Promise<AcaoLancamentoResultado> {
+  try {
+    await salvarDiaPagamentoCartao(dia);
+    revalidar();
+    return { ok: true };
+  } catch (erro) {
+    return falha(erro, "Não foi possível salvar o dia de pagamento.");
   }
 }

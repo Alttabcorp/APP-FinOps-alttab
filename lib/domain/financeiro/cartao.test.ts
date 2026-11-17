@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { faturaDoMes, parcelaNaCompetencia, planejarCartao, valorDaParcela, competenciaDaFatura } from "./cartao";
+import {
+  faturaDoMes,
+  parcelaNaCompetencia,
+  planejarCartao,
+  valorDaParcela,
+  competenciaDaFatura,
+  dataPagamentoDaFatura,
+} from "./cartao";
 
 describe("parcela de cartão", () => {
   const pc = {
@@ -60,5 +67,16 @@ describe("competenciaDaFatura", () => {
   it("depois do fechamento vai para o mês seguinte", () => {
     expect(competenciaDaFatura({ ano: 2026, mes: 11, dia: 8 }, 7)).toBe("2026-12");
     expect(competenciaDaFatura({ ano: 2026, mes: 12, dia: 20 }, 7)).toBe("2027-01");
+  });
+});
+
+describe("dataPagamentoDaFatura", () => {
+  it("vence no dia de pagamento do próprio mês da fatura", () => {
+    // Fecha 7/out → fatura de nov acumula → paga 14/nov
+    expect(dataPagamentoDaFatura("2026-11", 14)).toEqual({ ano: 2026, mes: 11, dia: 14 });
+    // Fecha 7/nov → fatura de dez → paga 14/dez
+    expect(dataPagamentoDaFatura("2026-12", 14)).toEqual({ ano: 2026, mes: 12, dia: 14 });
+    // Fecha 7/dez → fatura de jan → paga 14/jan
+    expect(dataPagamentoDaFatura("2027-01", 14)).toEqual({ ano: 2027, mes: 1, dia: 14 });
   });
 });

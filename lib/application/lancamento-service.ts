@@ -3,8 +3,10 @@ import { obterOuCriarMes } from "@/lib/application/mes-service";
 import {
   competenciaDaFatura,
   DIA_FECHAMENTO_PADRAO,
+  DIA_PAGAMENTO_PADRAO,
   hojeSaoPaulo,
   isDiaFechamento,
+  isDiaPagamento,
 } from "@/lib/domain/financeiro/cartao";
 import { isCompetencia } from "@/lib/domain/financeiro/competencia";
 
@@ -40,6 +42,20 @@ export const salvarDiaFechamentoCartao = async (dia: number) => {
     where: { id: "casa" },
     create: { id: "casa", diaFechamentoCartao: dia, atualizadoEm: new Date() },
     update: { diaFechamentoCartao: dia },
+  });
+};
+
+export const obterDiaPagamentoCartao = async () => {
+  const preferencia = await prisma.preferenciaCasa.findUnique({ where: { id: "casa" } });
+  return preferencia?.diaPagamentoCartao ?? DIA_PAGAMENTO_PADRAO;
+};
+
+export const salvarDiaPagamentoCartao = async (dia: number) => {
+  if (!isDiaPagamento(dia)) throw new Error("Informe um dia de 1 a 28.");
+  await prisma.preferenciaCasa.upsert({
+    where: { id: "casa" },
+    create: { id: "casa", diaPagamentoCartao: dia, atualizadoEm: new Date() },
+    update: { diaPagamentoCartao: dia },
   });
 };
 

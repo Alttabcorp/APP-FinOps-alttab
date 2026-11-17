@@ -1,4 +1,5 @@
 import { carregarFolha } from "@/lib/application/carregar-folha";
+import { obterDiaPagamentoCartao } from "@/lib/application/lancamento-service";
 import { alertasDoMes, type AlertaMes } from "@/lib/domain/financeiro/alertas";
 import { competenciaAtual, isCompetencia } from "@/lib/domain/financeiro/competencia";
 
@@ -14,7 +15,7 @@ export async function carregarAlertas(competencia?: string | null): Promise<{
   } | null;
 }> {
   const alvo = competencia && isCompetencia(competencia) ? competencia : competenciaAtual();
-  const folha = await carregarFolha(alvo);
+  const [folha, diaPagamento] = await Promise.all([carregarFolha(alvo), obterDiaPagamentoCartao()]);
   if (!folha) {
     return { competencia: alvo, alertas: [], regras: null };
   }
@@ -23,6 +24,8 @@ export async function carregarAlertas(competencia?: string | null): Promise<{
     competencia: alvo,
     resultado: folha.resultado,
     parcelas: folha.parcelasCartao,
+    diaPagamento,
+    cartaoPago: Boolean(folha.dto.depositos?.cartao),
   });
 
   return {

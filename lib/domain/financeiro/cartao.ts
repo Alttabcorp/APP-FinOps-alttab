@@ -101,20 +101,39 @@ export const planejarCartao = (entrada: {
 };
 
 export const DIA_FECHAMENTO_PADRAO = 7;
+export const DIA_PAGAMENTO_PADRAO = 14;
 
-/** Dia em que a fatura vira: compras depois dele só são cobradas no mês seguinte. */
+/** Dia válido de fechamento ou vencimento do cartão (1–28). */
 export const isDiaFechamento = (valor: unknown): valor is number => {
   const dia = Number(valor);
   return Number.isInteger(dia) && dia >= 1 && dia <= 28;
 };
 
-/** Em qual mês (competência) uma compra feita em ano/mes/dia entra na fatura. */
+export const isDiaPagamento = isDiaFechamento;
+
+/**
+ * Em qual mês (competência) uma compra feita em ano/mes/dia entra na fatura.
+ * Depois do fechamento (ex.: dia 7), a compra já cai na fatura do mês seguinte.
+ */
 export const competenciaDaFatura = (
   data: { ano: number; mes: number; dia: number },
   diaFechamento: number = DIA_FECHAMENTO_PADRAO,
 ): string => {
   const base = `${data.ano}-${String(data.mes).padStart(2, "0")}`;
   return data.dia > diaFechamento ? avancarCompetencia(base, 1) : base;
+};
+
+/**
+ * Vencimento da fatura da competência: dia de pagamento no próprio mês da fatura.
+ * Ex.: fatura 2026-12 (aberta após o fechamento de nov) → paga em 14/12.
+ */
+export const dataPagamentoDaFatura = (
+  competencia: string,
+  diaPagamento: number = DIA_PAGAMENTO_PADRAO,
+): { ano: number; mes: number; dia: number } | null => {
+  if (!isCompetencia(competencia) || !isDiaPagamento(diaPagamento)) return null;
+  const [ano, mes] = competencia.split("-").map(Number);
+  return { ano, mes, dia: diaPagamento };
 };
 
 /** Data de hoje no fuso de São Paulo, em partes. */

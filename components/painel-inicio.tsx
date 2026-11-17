@@ -174,6 +174,7 @@ export function PainelInicio({
         >
           <p className="kpi-rotulo">Teto do cartão</p>
           <p className="money resumo-valor-sm">{formatarMoeda(tetoCartao)}</p>
+          <p className="text-xs text-mute">Só renda que se repete</p>
           <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-line/70" aria-hidden="true">
             <div className={`h-1.5 ${estouro ? "bg-outflow" : "bg-inflow"}`} style={{ width: `${pctCartao}%` }} />
           </div>

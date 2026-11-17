@@ -191,11 +191,12 @@ export function PainelCartao({
             </div>
           </dl>
           <p className="mt-3 text-sm text-mute">
-            Depois das contas, o que sobra é o teto do cartão. Gastos fixos e parcelas já entram na fatura.
+            Teto = renda estável após as contas (sem bicos). Fixos e parcelas já ocupam o teto; o que sobra ainda cabe.
+            Ordem: contas → fatura → poupança 10% → aportes.
           </p>
           {teto > 0.005 && fatura > teto + 0.005 ? (
             <p className="rito-aperto mt-3">
-              A fatura passa do que sobrou depois das contas. Não gastem mais neste cartão neste mês.
+              A fatura passa do teto da renda estável. Essa conta é paga no mês seguinte — pare de usar o cartão.
             </p>
           ) : null}
         </>

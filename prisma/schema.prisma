@@ -225,6 +225,7 @@ model PreferenciaCasa {
   destinoCartaoNome      String   @default("")
   destinoCartaoChave     String   @default("")
   diaFechamentoCartao    Int      @default(7)
+  diaPagamentoCartao     Int      @default(14)
   atualizadoEm           DateTime @updatedAt
 }
 

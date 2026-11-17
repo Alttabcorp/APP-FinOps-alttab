@@ -52,8 +52,9 @@ export type MesDTO = {
 const decimalParaNumero = (valor: { toString(): string } | number) => Number(valor);
 
 const itemEhEstavel = (item: ItemComFonte): boolean => {
-  // Bico pontual não entra no teto; emprego e saldo sem fonte (legado) contam como estáveis.
-  return item.fonteRenda?.tipo !== "BICO";
+  // Bico e venda são pontuais — não sobem o teto. Salário (EMPREGO) e saldo sem fonte (legado) sobem.
+  const tipo = item.fonteRenda?.tipo;
+  return tipo !== "BICO" && tipo !== "VENDA";
 };
 
 export const mesParaEntrada = (mes: MesComItens): EntradaMes => {

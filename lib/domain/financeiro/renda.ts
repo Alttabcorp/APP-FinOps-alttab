@@ -3,6 +3,7 @@ import type { PapelExtra, TipoItem } from "./tipos";
 export const TIPOS_RENDA = [
   "EMPREGO",
   "BICO",
+  "VENDA",
   "RENDIMENTO",
   "VALE_TRANSPORTE",
   "VALE_ALIMENTACAO",
@@ -15,12 +16,29 @@ export const TITULARES_RENDA = ["EU", "CONJUGE"] as const;
 export type TitularRenda = (typeof TITULARES_RENDA)[number];
 
 export const ROTULOS_TIPO_RENDA: Record<TipoRenda, string> = {
-  EMPREGO: "Entrada",
+  EMPREGO: "Salário",
   BICO: "Bico",
+  VENDA: "Venda",
   RENDIMENTO: "Rendimento das contas",
   VALE_TRANSPORTE: "Vale-transporte",
   VALE_ALIMENTACAO: "Vale-alimentação",
 };
+
+/** Descrição curta do efeito no teto do cartão. */
+export const NOTAS_TIPO_RENDA: Record<TipoRenda, string> = {
+  EMPREGO: "Renda que se repete — entra no teto do cartão.",
+  BICO: "Pontual — entra no caixa, não sobe o teto do cartão.",
+  VENDA: "Pontual — entra no caixa, não sobe o teto do cartão.",
+  RENDIMENTO: "Reinveste; se o mês apertar, ajuda nas contas.",
+  VALE_TRANSPORTE: "Entra no caixa (gasolina / transporte).",
+  VALE_ALIMENTACAO: "Só para a feira — não sobe o teto.",
+};
+
+/** Tipos de dinheiro (SALDO) que sobem o teto do cartão. */
+export const TIPOS_RENDA_TETO = ["EMPREGO"] as const;
+
+export const rendaInflaTeto = (tipo: TipoRenda | null | undefined): boolean =>
+  tipo == null || (TIPOS_RENDA_TETO as readonly string[]).includes(tipo);
 
 export const ROTULOS_TITULAR: Record<TitularRenda, string> = {
   EU: "Casa",
@@ -29,10 +47,16 @@ export const ROTULOS_TITULAR: Record<TitularRenda, string> = {
 
 export const GRUPOS_RENDA = [
   {
-    id: "entrada",
-    rotulo: "Entradas",
-    nota: "Empregos, bicos e qualquer dinheiro que entra.",
-    tipos: ["EMPREGO", "BICO"] as const,
+    id: "salario",
+    rotulo: "Salário",
+    nota: "Emprego e renda fixa. Sobe o teto do cartão.",
+    tipos: ["EMPREGO"] as const,
+  },
+  {
+    id: "pontual",
+    rotulo: "Bico e venda",
+    nota: "Dinheiro pontual. Entra no caixa e na poupança, mas não sobe o teto do cartão.",
+    tipos: ["BICO", "VENDA"] as const,
   },
   {
     id: "rendimento",
@@ -76,6 +100,7 @@ export const mapearRendaParaItem = (tipo: TipoRenda, nome = ""): MapeamentoRenda
   if (tipo === "VALE_TRANSPORTE") return { tipoItem: "EXTRA", papel: "VALE_TRANSPORTE" };
   if (tipo === "VALE_ALIMENTACAO") return { tipoItem: "EXTRA", papel: "VALE_ALIMENTACAO" };
   if (tipo === "RENDIMENTO") return { tipoItem: "EXTRA", papel: papelDoRendimento(nome) };
+  // EMPREGO, BICO e VENDA → dinheiro (SALDO); só EMPREGO sobe o teto.
   return { tipoItem: "SALDO", papel: null };
 };
 
@@ -84,11 +109,12 @@ export const rendasPadrao = (): FonteRendaEntrada[] => [
   { nome: "Pesquisa", tipo: "EMPREGO", titular: "EU", ordem: 1 },
   { nome: "HUJB", tipo: "EMPREGO", titular: "EU", ordem: 2 },
   { nome: "Bicos", tipo: "BICO", titular: "EU", ordem: 3 },
-  { nome: "Vale-transporte", tipo: "VALE_TRANSPORTE", titular: "EU", ordem: 4 },
-  { nome: "Vale-alimentação", tipo: "VALE_ALIMENTACAO", titular: "EU", ordem: 5 },
-  { nome: "Rendimento das contas", tipo: "RENDIMENTO", titular: "EU", ordem: 6 },
-  { nome: "Rendimento da poupança", tipo: "RENDIMENTO", titular: "EU", ordem: 7 },
-  { nome: "Rendimento da meta", tipo: "RENDIMENTO", titular: "EU", ordem: 8 },
+  { nome: "Vendas", tipo: "VENDA", titular: "EU", ordem: 4 },
+  { nome: "Vale-transporte", tipo: "VALE_TRANSPORTE", titular: "EU", ordem: 5 },
+  { nome: "Vale-alimentação", tipo: "VALE_ALIMENTACAO", titular: "EU", ordem: 6 },
+  { nome: "Rendimento das contas", tipo: "RENDIMENTO", titular: "EU", ordem: 7 },
+  { nome: "Rendimento da poupança", tipo: "RENDIMENTO", titular: "EU", ordem: 8 },
+  { nome: "Rendimento da meta", tipo: "RENDIMENTO", titular: "EU", ordem: 9 },
 ];
 
 export const agruparRendas = <T extends { tipo: TipoRenda }>(rendas: T[]) =>

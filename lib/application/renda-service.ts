@@ -65,6 +65,29 @@ export const garantirRendasPadrao = async () => {
 
   await garantirFonteRendimento("Rendimento da poupança", "poupan");
   await garantirFonteRendimento("Rendimento da meta", "meta");
+  await garantirFontePorTipo("BICO", "Bicos");
+  await garantirFontePorTipo("VENDA", "Vendas");
+};
+
+/** Garante uma fonte pontual (bico/venda) para marcar entradas que não sobem o teto. */
+const garantirFontePorTipo = async (tipo: "BICO" | "VENDA", nomePadrao: string) => {
+  const existente = await prisma.fonteRenda.findFirst({
+    where: { tipo },
+    orderBy: { ordem: "asc" },
+  });
+  if (existente) return existente;
+  const ultima = await prisma.fonteRenda.findFirst({ orderBy: { ordem: "desc" } });
+  const criada = await prisma.fonteRenda.create({
+    data: {
+      nome: nomePadrao,
+      tipo,
+      titular: "EU",
+      ordem: (ultima?.ordem ?? 0) + 1,
+      atualizadoEm: new Date(),
+    },
+  });
+  await adicionarFonteAosMesesAbertos(criada);
+  return criada;
 };
 
 const garantirFonteRendimento = async (nome: string, trecho: string) => {

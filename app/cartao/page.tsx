@@ -6,6 +6,7 @@ import {
   competenciaDaFaturaHoje,
   listarLancamentos,
   obterDiaFechamentoCartao,
+  obterDiaPagamentoCartao,
 } from "@/lib/application/lancamento-service";
 import { isCompetencia } from "@/lib/domain/financeiro/competencia";
 
@@ -22,11 +23,12 @@ export default async function PaginaCartao({ searchParams }: Props) {
   if (!folha) notFound();
 
   const competenciasLista = [...new Set([competencia, faturaHoje])];
-  const [compras, recorrentes, lancamentos, diaFechamento] = await Promise.all([
+  const [compras, recorrentes, lancamentos, diaFechamento, diaPagamento] = await Promise.all([
     listarComprasCartao(),
     listarRecorrentesCartao(),
     listarLancamentos(competenciasLista),
     obterDiaFechamentoCartao(),
+    obterDiaPagamentoCartao(),
   ]);
   const cartao = folha.resultado.despesasVariaveis.cartao;
   const avulsosDestaFatura = lancamentos.filter(
@@ -48,6 +50,7 @@ export default async function PaginaCartao({ searchParams }: Props) {
         lancamentos={avulsosDestaFatura}
         faturaHoje={faturaHoje}
         diaFechamento={diaFechamento}
+        diaPagamento={diaPagamento}
         avulsosFaturaAberta={avulsosFaturaAberta.map((item) => ({
           id: item.id,
           descricao: item.descricao,

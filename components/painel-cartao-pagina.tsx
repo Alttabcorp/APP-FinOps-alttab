@@ -4,7 +4,12 @@ import { BotaoFlutuante } from "@/components/botao-flutuante";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { adicionarLancamentoAction, removerLancamentoAction, salvarDiaFechamentoAction } from "@/app/actions/lancamento";
+import {
+  adicionarLancamentoAction,
+  removerLancamentoAction,
+  salvarDiaFechamentoAction,
+  salvarDiaPagamentoAction,
+} from "@/app/actions/lancamento";
 import { marcarDepositoAction } from "@/app/actions/mes";
 import { CampoTexto } from "@/components/campo";
 import { CampoMoeda } from "@/components/campo-moeda";
@@ -27,6 +32,7 @@ type Props = {
   lancamentos: LancamentoDTO[];
   faturaHoje: string;
   diaFechamento: number;
+  diaPagamento: number;
   /** Compras já lançadas na fatura que está aberta agora (quando você está vendo outro mês). */
   avulsosFaturaAberta?: { id: string; descricao: string; valor: number }[];
 };
@@ -51,6 +57,7 @@ export function PainelCartaoPagina({
   lancamentos,
   faturaHoje,
   diaFechamento,
+  diaPagamento,
   avulsosFaturaAberta = [],
 }: Props) {
   const router = useRouter();
@@ -60,6 +67,7 @@ export function PainelCartaoPagina({
   const [valor, setValor] = useState(0);
   const [descricao, setDescricao] = useState("");
   const [fechamento, setFechamento] = useState(diaFechamento);
+  const [pagamento, setPagamento] = useState(diaPagamento);
   const [erro, setErro] = useState("");
   const [status, setStatus] = useState("");
 
@@ -101,6 +109,17 @@ export function PainelCartaoPagina({
       const resposta = await salvarDiaFechamentoAction(dia);
       if (resposta.ok) {
         setStatus(`Fatura fecha no dia ${dia}.`);
+        router.refresh();
+      } else setErro(resposta.erro);
+    });
+  };
+
+  const mudarPagamento = (dia: number) => {
+    setPagamento(dia);
+    startTransition(async () => {
+      const resposta = await salvarDiaPagamentoAction(dia);
+      if (resposta.ok) {
+        setStatus(`Fatura vence no dia ${dia}.`);
         router.refresh();
       } else setErro(resposta.erro);
     });
@@ -148,7 +167,7 @@ export function PainelCartaoPagina({
           <p className="mt-2 max-w-[60ch] text-sm text-mute">
             {fechado
               ? "Mês fechado (somente leitura)."
-              : `A fatura fecha no dia ${diaFechamento}: compras depois disso entram na fatura seguinte.`}
+              : `Fecha dia ${diaFechamento} · paga dia ${diaPagamento} de ${formatarNomeMes(competencia)}. Depois do fechamento, compras já entram na fatura seguinte.`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -291,7 +310,9 @@ export function PainelCartaoPagina({
           <header className="caixa-topo">
             <div className="min-w-0 flex-1">
               <h2 className="caixa-titulo">Pagamento</h2>
-              <p className="caixa-funcao">Marque quando a fatura for paga.</p>
+              <p className="caixa-funcao">
+                Ex.: fecha 7/nov → fatura de dezembro → paga dia {diaPagamento} de dezembro.
+              </p>
             </div>
           </header>
           <div className="caixa-corpo">
@@ -303,7 +324,7 @@ export function PainelCartaoPagina({
                 disabled={fechado || pendente}
                 onChange={(evento) => marcarPago(evento.target.checked)}
               />
-              <span>Fatura paga</span>
+              <span>Fatura paga (venc. dia {diaPagamento})</span>
             </label>
             <CampoPassos
               id="cartao-fechamento-pagina"
@@ -312,6 +333,14 @@ export function PainelCartaoPagina({
               min={1}
               max={28}
               onChange={mudarFechamento}
+            />
+            <CampoPassos
+              id="cartao-pagamento-pagina"
+              label="A fatura vence / é paga no dia"
+              value={pagamento}
+              min={1}
+              max={28}
+              onChange={mudarPagamento}
             />
           </div>
         </section>

@@ -43,6 +43,7 @@ type Props = {
   /** Fatura em que uma compra feita hoje entra (depende do dia de fechamento). */
   faturaHoje: string;
   diaFechamento: number;
+  diaPagamento: number;
   tetoCartao: number;
 };
 
@@ -76,6 +77,7 @@ export function PainelDespesas({
   recorrentes,
   faturaHoje,
   diaFechamento,
+  diaPagamento,
   tetoCartao,
 }: Props) {
   const router = useRouter();
@@ -575,8 +577,8 @@ export function PainelDespesas({
               <div className="grid gap-2">
                 <p className="text-sm text-mute">
                   {faturaHoje === competencia
-                    ? `A compra de hoje entra na fatura deste mês (${formatarNomeMes(faturaHoje)}).`
-                    : `Hoje já passou do fechamento: a compra entra na fatura de ${formatarNomeMes(faturaHoje)}.`}
+                    ? `A compra de hoje entra na fatura deste mês (${formatarNomeMes(faturaHoje)}), paga no dia ${diaPagamento}.`
+                    : `Hoje já passou do fechamento: a compra entra na fatura de ${formatarNomeMes(faturaHoje)} (paga dia ${diaPagamento}).`}
                 </p>
                 <CampoPassos
                   id="cartao-fechamento"

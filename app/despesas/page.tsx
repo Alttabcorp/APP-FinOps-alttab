@@ -8,6 +8,7 @@ import {
   isCategoriaVariavel,
   listarLancamentos,
   obterDiaFechamentoCartao,
+  obterDiaPagamentoCartao,
 } from "@/lib/application/lancamento-service";
 import { competenciaAtual, isCompetencia } from "@/lib/domain/financeiro/competencia";
 
@@ -34,12 +35,13 @@ export default async function PaginaDespesas({ searchParams }: Props) {
   if (!folha) notFound();
 
   const faturaHoje = await competenciaDaFaturaHoje();
-  const [lancamentos, contasAnuais, compras, recorrentes, diaFechamento] = await Promise.all([
+  const [lancamentos, contasAnuais, compras, recorrentes, diaFechamento, diaPagamento] = await Promise.all([
     listarLancamentos([...new Set([competencia, faturaHoje])]),
     listarContasAnuais(),
     listarComprasCartao(),
     listarRecorrentesCartao(),
     obterDiaFechamentoCartao(),
+    obterDiaPagamentoCartao(),
   ]);
   const { resultado, dto } = folha;
   const inv = resultado.investimentos;
@@ -75,6 +77,7 @@ export default async function PaginaDespesas({ searchParams }: Props) {
         recorrentes={recorrentes}
         faturaHoje={faturaHoje}
         diaFechamento={diaFechamento}
+        diaPagamento={diaPagamento}
         tetoCartao={resultado.despesasVariaveis.cartao.teto}
         abrirCategoria={isCategoriaVariavel(add) ? add : null}
         aportes={[

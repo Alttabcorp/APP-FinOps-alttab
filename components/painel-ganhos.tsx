@@ -8,8 +8,10 @@ import { salvarMesAction } from "@/app/actions/mes";
 import { CampoSelect, CampoTexto } from "@/components/campo";
 import { CampoMoeda } from "@/components/campo-moeda";
 import { Modal } from "@/components/modal";
+import type { FonteRendaDTO } from "@/lib/application/renda-mapper";
 import type { ItemDTO, MesDTO } from "@/lib/application/mes-mapper";
 import { avancarCompetencia, formatarCompetencia } from "@/lib/domain/financeiro/competencia";
+import { NOTAS_TIPO_RENDA, type TipoRenda } from "@/lib/domain/financeiro/renda";
 import type { PapelExtra } from "@/lib/domain/financeiro/tipos";
 import { formatarMoeda } from "@/lib/formatacao";
 
@@ -18,25 +20,48 @@ type Props = {
   mesInicial: MesDTO;
   sobrou: number;
   gasto: number;
+  fontes: FonteRendaDTO[];
 };
 
-type TipoEntrada = "DINHEIRO" | PapelExtra;
+type TipoEntrada = "SALARIO" | "BICO" | "VENDA" | PapelExtra;
 
-const OPCOES: { id: TipoEntrada; rotulo: string }[] = [
-  { id: "DINHEIRO", rotulo: "Dinheiro (salário, bico, venda)" },
-  { id: "VALE_TRANSPORTE", rotulo: "Vale-transporte" },
-  { id: "VALE_ALIMENTACAO", rotulo: "Vale-alimentação" },
-  { id: "PROVENTO_FUNDO", rotulo: "Rendimento do fundo imobiliário" },
-  { id: "PROVENTO_POUPANCA", rotulo: "Rendimento da poupança" },
-  { id: "OUTRO", rotulo: "Outro extra" },
+const OPCOES: { id: TipoEntrada; rotulo: string; nota: string }[] = [
+  { id: "SALARIO", rotulo: "Salário", nota: NOTAS_TIPO_RENDA.EMPREGO },
+  { id: "BICO", rotulo: "Bico", nota: NOTAS_TIPO_RENDA.BICO },
+  { id: "VENDA", rotulo: "Venda", nota: NOTAS_TIPO_RENDA.VENDA },
+  { id: "VALE_TRANSPORTE", rotulo: "Vale-transporte", nota: NOTAS_TIPO_RENDA.VALE_TRANSPORTE },
+  { id: "VALE_ALIMENTACAO", rotulo: "Vale-alimentação", nota: NOTAS_TIPO_RENDA.VALE_ALIMENTACAO },
+  { id: "PROVENTO_FUNDO", rotulo: "Rendimento do fundo imobiliário", nota: NOTAS_TIPO_RENDA.RENDIMENTO },
+  { id: "PROVENTO_POUPANCA", rotulo: "Rendimento da poupança", nota: NOTAS_TIPO_RENDA.RENDIMENTO },
+  { id: "OUTRO", rotulo: "Outro extra", nota: "Entra no mês, sem regra especial de teto." },
 ];
+
+const PLACEHOLDER: Partial<Record<TipoEntrada, string>> = {
+  SALARIO: "Ex.: Projeto, HUJB, salário",
+  BICO: "Ex.: Plantão de sábado, freela",
+  VENDA: "Ex.: Venda do monitor, marketplace",
+  VALE_TRANSPORTE: "Ex.: Vale-transporte",
+  VALE_ALIMENTACAO: "Ex.: Vale-alimentação",
+  PROVENTO_FUNDO: "Ex.: Provento fundo",
+  PROVENTO_POUPANCA: "Ex.: Rendimento da poupança",
+  OUTRO: "Ex.: Reembolso, devolução",
+};
 
 const soma = (itens: ItemDTO[]) => itens.reduce((acc, item) => acc + (Number(item.valor) || 0), 0);
 
-export function PainelGanhos({ competencia, mesInicial, sobrou, gasto }: Props) {
+const tipoDaFonte = (fontes: FonteRendaDTO[], fonteRendaId?: string | null): TipoRenda | null => {
+  if (!fonteRendaId) return null;
+  return fontes.find((fonte) => fonte.id === fonteRendaId)?.tipo ?? null;
+};
+
+const ehPontual = (fontes: FonteRendaDTO[], item: ItemDTO) => {
+  const tipo = tipoDaFonte(fontes, item.fonteRendaId);
+  return tipo === "BICO" || tipo === "VENDA";
+};
+
+export function PainelGanhos({ competencia, mesInicial, sobrou, gasto, fontes }: Props) {
   const router = useRouter();
   const [mes, setMes] = useState(mesInicial);
-  // Sincroniza com o servidor: ao trocar de mês ou recarregar os dados, descarta o estado local antigo.
   const [mesRecebido, setMesRecebido] = useState(mesInicial);
   if (mesRecebido !== mesInicial) {
     setMesRecebido(mesInicial);
@@ -44,7 +69,7 @@ export function PainelGanhos({ competencia, mesInicial, sobrou, gasto }: Props) 
   }
   const [status, setStatus] = useState("");
   const [aberto, setAberto] = useState(false);
-  const [tipo, setTipo] = useState<TipoEntrada>("DINHEIRO");
+  const [tipo, setTipo] = useState<TipoEntrada>("SALARIO");
   const [nome, setNome] = useState("");
   const [valor, setValor] = useState(0);
   const [erro, setErro] = useState("");
@@ -53,11 +78,22 @@ export function PainelGanhos({ competencia, mesInicial, sobrou, gasto }: Props) 
   useEffect(() => setMes(mesInicial), [mesInicial]);
 
   const dinheiro = mes.itens.map((item, indice) => ({ item, indice })).filter(({ item }) => item.tipo === "SALDO");
+  const salario = dinheiro.filter(({ item }) => !ehPontual(fontes, item));
+  const pontual = dinheiro.filter(({ item }) => ehPontual(fontes, item));
   const extras = mes.itens.map((item, indice) => ({ item, indice })).filter(({ item }) => item.tipo === "EXTRA");
-  const totalDinheiro = soma(dinheiro.map(({ item }) => item));
+  const totalSalario = soma(salario.map(({ item }) => item));
+  const totalPontual = soma(pontual.map(({ item }) => item));
   const totalExtras = soma(extras.map(({ item }) => item));
-  const ganhou = totalDinheiro + totalExtras;
+  const ganhou = totalSalario + totalPontual + totalExtras;
   const fechado = mes.fechado;
+  const notaTipo = OPCOES.find((opcao) => opcao.id === tipo)?.nota ?? "";
+
+  const fonteIdPara = (entrada: TipoEntrada): string | null => {
+    if (entrada === "BICO") return fontes.find((f) => f.tipo === "BICO")?.id ?? null;
+    if (entrada === "VENDA") return fontes.find((f) => f.tipo === "VENDA")?.id ?? null;
+    if (entrada === "SALARIO") return fontes.find((f) => f.tipo === "EMPREGO")?.id ?? null;
+    return null;
+  };
 
   const gravar = (proximo: MesDTO, mensagem: string, aoConcluir?: () => void) => {
     const anterior = mes;
@@ -93,23 +129,51 @@ export function PainelGanhos({ competencia, mesInicial, sobrou, gasto }: Props) 
   };
 
   const adicionar = () => {
-    const rotulo = nome.trim() || OPCOES.find((opcao) => opcao.id === tipo)?.rotulo.split(" (")[0] || "";
+    const rotulo =
+      nome.trim() || OPCOES.find((opcao) => opcao.id === tipo)?.rotulo || "";
     if (!rotulo) return setErro("Informe de onde veio o dinheiro.");
     if (!(valor > 0)) return setErro("Informe o valor da entrada.");
     const ordem = mes.itens.reduce((acc, item) => Math.max(acc, item.ordem), -1) + 1;
-    const novo: ItemDTO =
-      tipo === "DINHEIRO"
-        ? { tipo: "SALDO", nome: rotulo, valor, ordem, pago: false }
-        : { tipo: "EXTRA", nome: rotulo, valor, papel: tipo, ordem, pago: false };
-    gravar({ ...mes, itens: [...mes.itens, novo] }, `Entrada de ${formatarMoeda(valor)} registrada.`, () => {
+    const ehDinheiro = tipo === "SALARIO" || tipo === "BICO" || tipo === "VENDA";
+    const novo: ItemDTO = ehDinheiro
+      ? {
+          tipo: "SALDO",
+          nome: rotulo,
+          valor,
+          ordem,
+          pago: false,
+          fonteRendaId: fonteIdPara(tipo),
+        }
+      : { tipo: "EXTRA", nome: rotulo, valor, papel: tipo, ordem, pago: false };
+    const avisoTeto =
+      tipo === "BICO" || tipo === "VENDA"
+        ? " (não sobe o teto do cartão)"
+        : tipo === "SALARIO"
+          ? " (entra no teto do cartão)"
+          : "";
+    gravar({ ...mes, itens: [...mes.itens, novo] }, `Entrada de ${formatarMoeda(valor)} registrada${avisoTeto}.`, () => {
       setAberto(false);
       setNome("");
       setValor(0);
-      setTipo("DINHEIRO");
+      setTipo("SALARIO");
     });
   };
 
-  const lista = (titulo: string, nota: string, linhas: typeof dinheiro, total: number, vazio: string) => (
+  const detalhePontual = (item: ItemDTO) => {
+    const tipoFonte = tipoDaFonte(fontes, item.fonteRendaId);
+    if (tipoFonte === "VENDA") return "Venda · não sobe teto";
+    if (tipoFonte === "BICO") return "Bico · não sobe teto";
+    return null;
+  };
+
+  const lista = (
+    titulo: string,
+    nota: string,
+    linhas: typeof dinheiro,
+    total: number,
+    vazio: string,
+    comDetalhe = false,
+  ) => (
     <section className="caixa" aria-label={titulo}>
       <header className="caixa-topo">
         <div className="min-w-0 flex-1">
@@ -125,7 +189,12 @@ export function PainelGanhos({ competencia, mesInicial, sobrou, gasto }: Props) 
           <ul>
             {linhas.map(({ item, indice }) => (
               <li key={item.id ?? `${item.tipo}-${indice}`} className="ganho-linha">
-                <span className="min-w-0 flex-1 truncate">{item.nome || "Sem nome"}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate">{item.nome || "Sem nome"}</span>
+                  {comDetalhe && detalhePontual(item) ? (
+                    <span className="block text-xs text-mute">{detalhePontual(item)}</span>
+                  ) : null}
+                </span>
                 <div className="ganho-valor">
                   <CampoMoeda
                     id={`ganho-${indice}`}
@@ -165,7 +234,7 @@ export function PainelGanhos({ competencia, mesInicial, sobrou, gasto }: Props) 
           <p className="mt-2 max-w-[60ch] text-sm text-mute">
             {fechado
               ? "Mês fechado (somente leitura)."
-              : "Tudo que entrou neste mês: salário, bicos, vales e rendimentos. Adicione ou ajuste aqui."}
+              : "Separe salário, bico e venda: só o salário sobe o teto do cartão."}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -197,7 +266,7 @@ export function PainelGanhos({ competencia, mesInicial, sobrou, gasto }: Props) 
         <div className="resumo-celula is-principal">
           <p className="kpi-rotulo">Ganhou no mês</p>
           <p className="amount resumo-valor text-inflow">{formatarMoeda(ganhou)}</p>
-          <p className="text-xs text-mute">Dinheiro + vales e rendimentos</p>
+          <p className="text-xs text-mute">Salário + bico/venda + vales</p>
         </div>
         <div className="resumo-celula">
           <p className="kpi-rotulo">Gasto do mês</p>
@@ -219,11 +288,19 @@ export function PainelGanhos({ competencia, mesInicial, sobrou, gasto }: Props) 
 
       <div className="caixas-grade">
         {lista(
-          "Dinheiro",
-          "Salário, bicos e vendas. É a base da poupança e do caixa das contas.",
-          dinheiro,
-          totalDinheiro,
-          "Nenhuma entrada de dinheiro neste mês.",
+          "Salário",
+          "Emprego e renda que se repete. Entra no teto do cartão.",
+          salario,
+          totalSalario,
+          "Nenhum salário neste mês.",
+        )}
+        {lista(
+          "Bico e venda",
+          "Dinheiro pontual. Entra no caixa e na poupança, mas não sobe o teto do cartão.",
+          pontual,
+          totalPontual,
+          "Nenhum bico ou venda neste mês.",
+          true,
         )}
         {lista(
           "Vales e rendimentos",
@@ -251,7 +328,7 @@ export function PainelGanhos({ competencia, mesInicial, sobrou, gasto }: Props) 
       <Modal
         aberto={aberto}
         titulo="Nova entrada"
-        descricao="Dinheiro que entrou neste mês. Entra no “Ganhou no mês” e muda a sobra e a sugestão de poupança."
+        descricao="Escolha o tipo: salário sobe o teto; bico e venda entram no caixa sem liberar mais cartão."
         onClose={() => setAberto(false)}
       >
         <form
@@ -268,11 +345,12 @@ export function PainelGanhos({ competencia, mesInicial, sobrou, gasto }: Props) 
               </option>
             ))}
           </CampoSelect>
+          {notaTipo ? <p className="text-sm text-mute">{notaTipo}</p> : null}
           <CampoTexto
             id="ganho-nome"
             label="Descrição"
             value={nome}
-            placeholder="Ex.: Bico de sábado, venda do monitor"
+            placeholder={PLACEHOLDER[tipo] ?? "Ex.: de onde veio"}
             onChange={setNome}
           />
           <CampoMoeda id="ganho-novo-valor" label="Valor" value={valor} onChange={setValor} autoFocus />

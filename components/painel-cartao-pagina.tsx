@@ -27,6 +27,8 @@ type Props = {
   lancamentos: LancamentoDTO[];
   faturaHoje: string;
   diaFechamento: number;
+  /** Compras já lançadas na fatura que está aberta agora (quando você está vendo outro mês). */
+  avulsosFaturaAberta?: { id: string; descricao: string; valor: number }[];
 };
 
 type Cadastro = "compra" | "fixo" | "tudo" | null;
@@ -49,6 +51,7 @@ export function PainelCartaoPagina({
   lancamentos,
   faturaHoje,
   diaFechamento,
+  avulsosFaturaAberta = [],
 }: Props) {
   const router = useRouter();
   const [pendente, startTransition] = useTransition();
@@ -61,6 +64,8 @@ export function PainelCartaoPagina({
   const [status, setStatus] = useState("");
 
   const fechado = mes.fechado;
+  const faturaAbertaEmOutroMes = faturaHoje !== competencia;
+  const totalFaturaAberta = avulsosFaturaAberta.reduce((acc, item) => acc + item.valor, 0);
   const parcelas = parcelasDoMes(compras, competencia);
   const totalParcelas = parcelas.reduce((acc, parcela) => acc + parcela.valor, 0);
   const totalFixos = somarRecorrentes(recorrentes);
@@ -164,6 +169,23 @@ export function PainelCartaoPagina({
         </div>
       </header>
 
+      {faturaAbertaEmOutroMes ? (
+        <p className="caixa-nota mt-4" role="status">
+          Compras de agora (feira no cartão, avulsos…) entram na fatura de{" "}
+          <Link className="underline" href={`/cartao?mes=${faturaHoje}`}>
+            {formatarNomeMes(faturaHoje)}
+          </Link>
+          {totalFaturaAberta > 0.005
+            ? ` · já há ${formatarMoeda(totalFaturaAberta)} lançados lá`
+            : ""}
+          .
+        </p>
+      ) : (
+        <p className="caixa-nota mt-4 text-mute">
+          Esta é a fatura aberta: compras depois do dia {diaFechamento} do mês anterior já caem aqui.
+        </p>
+      )}
+
       <section className="resumo-faixa mt-5" aria-label="Resumo do cartão">
         <div className="resumo-celula is-principal">
           <p className="kpi-rotulo">Fatura do mês</p>
@@ -173,6 +195,7 @@ export function PainelCartaoPagina({
         <div className="resumo-celula">
           <p className="kpi-rotulo">Teto do cartão</p>
           <p className="money resumo-valor-sm">{formatarMoeda(teto)}</p>
+          <p className="text-xs text-mute">Renda estável após contas</p>
         </div>
         <div className="resumo-celula">
           <p className="kpi-rotulo">{estoura ? "Passou do teto" : "Ainda cabe"}</p>

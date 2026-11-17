@@ -448,7 +448,24 @@ export function PainelDespesas({
           <ul>
             {linhaVariavel("Feira", "feiraReal", `Sugestão ${formatarMoeda(sugestoes.feira)}`, "feira")}
             {linhaVariavel("Gasolina", "gasolinaReal", `Sugestão ${formatarMoeda(sugestoes.gasolina)}`, "gasolina")}
-            {linhaVariavel("Cartão avulso", "cartaoReal", `Compras após o dia ${fechamento} vão para a fatura seguinte`, "cartao")}
+            {linhaVariavel(
+              "Cartão avulso",
+              "cartaoReal",
+              faturaHoje === competencia
+                ? `Avulsos desta fatura (fecha dia ${fechamento})`
+                : `Compras após o dia ${fechamento} vão para ${formatarNomeMes(faturaHoje)}`,
+              "cartao",
+            )}
+            {faturaHoje !== competencia ? (
+              <li className="ganho-linha">
+                <span className="min-w-0 flex-1 text-sm text-mute">
+                  Feira/gasolina no crédito e outros avulsos de agora:{" "}
+                  <Link className="underline" href={`/cartao?mes=${faturaHoje}`}>
+                    ver fatura de {formatarNomeMes(faturaHoje)}
+                  </Link>
+                </span>
+              </li>
+            ) : null}
             <li className="ganho-linha">
               <span className="min-w-0 flex-1">Parcelas do cartão</span>
               <span className="money shrink-0 text-sm">{formatarMoeda(cartaoParcelas)}</span>

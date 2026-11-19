@@ -172,35 +172,32 @@ Ao entrar num mês novo, o app pergunta "Sobrou algo de [mês passado]?", com o 
 
 ## Como rodar
 
-O Postgres deste app sobe junto no `docker-compose` e grava em `./data`.
+Este app usa o **Postgres compartilhado** do servidor (`/home/garcon/infra/postgres`, container `postgres`, porta `5432`). O banco do projeto se chama `finops`.
 
 ### Docker neste servidor
 
-A rede `servicos` precisa existir (o Postgres compartilhado da máquina a cria). Depois:
+A rede `servicos` e o Postgres compartilhado precisam estar no ar. Depois:
 
 ```bash
 cd /home/garcon/Alttab/APP-FinOps-alttab
 cp .env.example .env
+# use a mesma senha de POSTGRES_PASSWORD do compose em /home/garcon/infra/postgres
 docker compose up --build -d
 ```
 
 Acesse [http://localhost:3000](http://localhost:3000). A migração Prisma roda na inicialização do contêiner.
 
-Se o build falhar com `can't stat data` (a pasta `./data` pertence ao Postgres), construa a imagem a partir de uma cópia sem `data/`, `node_modules/` e `.next/`, e depois suba com `docker compose up -d --no-build app`.
-
-Para zerar o banco e cadastrar de novo (apaga `./data`):
+Se o banco `finops` ainda não existir:
 
 ```bash
-docker compose down
-rm -rf data
-docker compose up -d
+/home/garcon/infra/postgres/scripts/criar-servico.sh finops
 ```
 
 Não rode `prisma db seed`: o seed preenche nomes de exemplo. Cadastre as contas reais na tela.
 
 ### Desenvolvimento
 
-Com o `db` no ar (`docker compose up -d db`) e o `DATABASE_URL` apontando para `127.0.0.1:5433`:
+Com o Postgres compartilhado no ar e o `DATABASE_URL` apontando para `127.0.0.1:5432/finops`:
 
 ```bash
 cp .env.example .env

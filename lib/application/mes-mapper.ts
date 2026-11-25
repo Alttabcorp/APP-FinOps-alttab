@@ -1,4 +1,11 @@
-import type { ItemFinanceiro as ItemPrisma, MesFinanceiro, PapelExtra, TipoItem, TipoRenda } from "@prisma/client";
+import type {
+  ItemFinanceiro as ItemPrisma,
+  MeioPagamentoConta,
+  MesFinanceiro,
+  PapelExtra,
+  TipoItem,
+  TipoRenda,
+} from "@prisma/client";
 import { calcularMes } from "@/lib/domain/financeiro/calcular-mes";
 import type { CampoMarca } from "@/lib/domain/financeiro/transferencia";
 import type { EntradaMes, ItemFinanceiro, ResultadoMes } from "@/lib/domain/financeiro/tipos";
@@ -23,6 +30,8 @@ export type ItemDTO = {
   papel?: PapelExtra | null;
   ordem: number;
   pago: boolean;
+  /** Preenchido quando a conta está marcada como paga. */
+  meioPagamento?: MeioPagamentoConta | null;
   fonteRendaId?: string | null;
   contaAnualId?: string | null;
 };
@@ -104,6 +113,12 @@ export const mesParaDto = (mes: MesComItens): MesDTO => ({
     papel: item.papel,
     ordem: item.ordem,
     pago: item.tipo === "CONTA" || item.tipo === "EXTRA_MES" || item.tipo === "ANUAL" ? item.pago : false,
+    meioPagamento:
+      item.tipo === "CONTA" || item.tipo === "EXTRA_MES" || item.tipo === "ANUAL"
+        ? item.pago
+          ? item.meioPagamento
+          : null
+        : null,
     fonteRendaId: item.fonteRendaId,
     contaAnualId: item.contaAnualId,
   })),
@@ -139,11 +154,21 @@ export const calcularMesPersistido = (
   gastoPessoalAlvo: number | null = null,
   reposicaoMeta = 0,
   cartaoFixo = 0,
+  /** Compras 1x ainda em CompraCartao — somam no avulso com cartaoReal. */
+  cartaoAvulsoExtra = 0,
 ): ResultadoMes => {
   const entrada = mesParaEntrada(mes);
   entrada.cartaoParcelas = cartaoFatura;
   entrada.cartaoFixo = cartaoFixo;
   entrada.gastoPessoalAlvo = gastoPessoalAlvo;
   entrada.reposicaoMeta = reposicaoMeta;
+  if (cartaoAvulsoExtra) {
+    const atual = entrada.despesasVariaveis?.cartao ?? 0;
+    entrada.despesasVariaveis = {
+      feira: entrada.despesasVariaveis?.feira ?? 0,
+      gasolina: entrada.despesasVariaveis?.gasolina ?? 0,
+      cartao: atual + cartaoAvulsoExtra,
+    };
+  }
   return calcularMes(entrada);
 };

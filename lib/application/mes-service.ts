@@ -323,6 +323,10 @@ export const salvarMes = async (payload: MesDTO): Promise<MesComItens> => {
           papel: item.tipo === "EXTRA" ? (item.papel ?? "OUTRO") : null,
           ordem: item.ordem ?? ordem,
           pago: item.tipo === "CONTA" || item.tipo === "EXTRA_MES" || item.tipo === "ANUAL" ? Boolean(item.pago) : false,
+          meioPagamento:
+            (item.tipo === "CONTA" || item.tipo === "EXTRA_MES" || item.tipo === "ANUAL") && item.pago
+              ? (item.meioPagamento ?? null)
+              : null,
           fonteRendaId: item.fonteRendaId ?? null,
           contaAnualId: item.contaAnualId ?? null,
         })),

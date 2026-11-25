@@ -50,6 +50,13 @@ enum LadoContaAnual {
   EMPRESA
 }
 
+/** Como a conta do mês foi paga (só quando pago = true). */
+enum MeioPagamentoConta {
+  DINHEIRO
+  CARTAO
+  VALE
+}
+
 model MesFinanceiro {
   id              String            @id @default(cuid())
   competencia     String            @unique
@@ -95,6 +102,7 @@ model ItemFinanceiro {
   papel        PapelExtra?
   ordem        Int         @default(0)
   pago         Boolean     @default(false)
+  meioPagamento MeioPagamentoConta?
   fonteRendaId String?
   fonteRenda   FonteRenda? @relation(fields: [fonteRendaId], references: [id], onDelete: SetNull)
   contaAnualId String?

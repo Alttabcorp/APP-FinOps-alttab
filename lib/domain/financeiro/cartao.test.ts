@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  avulsosCompraDoMes,
+  faturaAvulsosCompraDoMes,
   faturaDoMes,
+  faturaParcelasDoMes,
   parcelaNaCompetencia,
+  parcelasDoMes,
   planejarCartao,
   valorDaParcela,
   competenciaDaFatura,
@@ -46,6 +50,21 @@ describe("parcela de cartão", () => {
       "2026-10",
     );
     expect(fatura).toBeCloseTo(200, 2);
+  });
+
+  it("compra em 1x não entra em parcelas — só em avulsos da fatura", () => {
+    const avulsa = {
+      nome: "Mercado Livre",
+      valorTotal: 89.9,
+      parcelas: 1,
+      competenciaInicio: "2026-11",
+    };
+    expect(parcelasDoMes([pc, avulsa], "2026-11")).toHaveLength(1);
+    expect(parcelasDoMes([pc, avulsa], "2026-11")[0]?.nome).toBe("PC");
+    expect(avulsosCompraDoMes([avulsa], "2026-11")).toMatchObject([{ nome: "Mercado Livre", total: 1, valor: 89.9 }]);
+    expect(faturaParcelasDoMes([pc, avulsa], "2026-11")).toBeCloseTo(100, 2);
+    expect(faturaAvulsosCompraDoMes([avulsa], "2026-11")).toBeCloseTo(89.9, 2);
+    expect(faturaDoMes([pc, avulsa], "2026-11")).toBeCloseTo(189.9, 2);
   });
 
   it("o teto do cartão é o que sobrou depois das contas", () => {

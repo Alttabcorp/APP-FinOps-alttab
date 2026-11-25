@@ -7,7 +7,16 @@ import {
   type RecorrenteCartaoDTO,
   type RecorrenteCartaoPayload,
 } from "@/lib/application/cartao-mapper";
-import { faturaDoMes, parcelasDoMes, somarRecorrentes, valorDaParcela } from "@/lib/domain/financeiro/cartao";
+import { adicionarLancamento } from "@/lib/application/lancamento-service";
+import {
+  avulsosCompraDoMes,
+  faturaAvulsosCompraDoMes,
+  faturaDoMes,
+  faturaParcelasDoMes,
+  parcelasDoMes,
+  somarRecorrentes,
+  valorDaParcela,
+} from "@/lib/domain/financeiro/cartao";
 import { isCompetencia } from "@/lib/domain/financeiro/competencia";
 
 const LIMITE_NOME = 80;
@@ -43,27 +52,56 @@ export const listarComprasCartao = async (): Promise<CompraCartaoDTO[]> => {
   return compras.map(compraParaDto);
 };
 
-export const salvarCompraCartao = async (payload: CompraCartaoPayload): Promise<CompraCartaoDTO> => {
+export type SalvarCompraCartaoResultado =
+  | { tipo: "parcela"; compra: CompraCartaoDTO }
+  | { tipo: "avulso"; competencia: string };
+
+/**
+ * 2x+ → compra parcelada. 1x nova → lançamento avulso da fatura.
+ * Editar uma compra existente (com id) sempre atualiza CompraCartao.
+ */
+export const salvarCompraCartao = async (
+  payload: CompraCartaoPayload,
+): Promise<SalvarCompraCartaoResultado> => {
   const dados = validarPayload(payload);
+
+  // Compra à vista (1x): entra como avulso, não como "parcela 1/1".
+  if (!payload.id && dados.parcelas === 1) {
+    const { competencia } = await adicionarLancamento({
+      competencia: dados.competenciaInicio,
+      competenciaFatura: dados.competenciaInicio,
+      categoria: "cartao",
+      valor: dados.valorTotal,
+      descricao: dados.nome,
+    });
+    return { tipo: "avulso", competencia };
+  }
+
   if (payload.id) {
     const existente = await prisma.compraCartao.findUnique({ where: { id: payload.id } });
     if (!existente) throw new Error("Compra não encontrada.");
-    return compraParaDto(
-      await prisma.compraCartao.update({
-        where: { id: payload.id },
-        data: dados,
-      }),
-    );
+    return {
+      tipo: "parcela",
+      compra: compraParaDto(
+        await prisma.compraCartao.update({
+          where: { id: payload.id },
+          data: dados,
+        }),
+      ),
+    };
   }
   const ultima = await prisma.compraCartao.findFirst({
     orderBy: { ordem: "desc" },
     select: { ordem: true },
   });
-  return compraParaDto(
-    await prisma.compraCartao.create({
-      data: { ...dados, ordem: (ultima?.ordem ?? -1) + 1 },
-    }),
-  );
+  return {
+    tipo: "parcela",
+    compra: compraParaDto(
+      await prisma.compraCartao.create({
+        data: { ...dados, ordem: (ultima?.ordem ?? -1) + 1 },
+      }),
+    ),
+  };
 };
 
 export const excluirCompraCartao = async (id: string) => {
@@ -118,14 +156,20 @@ export const excluirRecorrenteCartao = async (id: string) => {
 export const faturaCartaoNaCompetencia = async (competencia: string) => {
   const [compras, recorrentes] = await Promise.all([listarComprasCartao(), listarRecorrentesCartao()]);
   const parcelas = parcelasDoMes(compras, competencia);
-  const faturaParcelas = faturaDoMes(compras, competencia);
+  const avulsosCompra = avulsosCompraDoMes(compras, competencia);
+  const faturaParcelas = faturaParcelasDoMes(compras, competencia);
+  const faturaAvulsosCompra = faturaAvulsosCompraDoMes(compras, competencia);
   const faturaFixo = somarRecorrentes(recorrentes);
   return {
     compras,
     recorrentes,
     parcelas,
+    avulsosCompra,
     faturaParcelas,
+    faturaAvulsosCompra,
+    /** Parcelas + compras 1x legadas (sem lançamentos avulsos do mês). */
+    faturaCompras: faturaDoMes(compras, competencia),
     faturaFixo,
-    fatura: faturaParcelas + faturaFixo,
+    fatura: faturaParcelas + faturaAvulsosCompra + faturaFixo,
   };
 };

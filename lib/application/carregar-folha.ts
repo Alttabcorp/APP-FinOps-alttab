@@ -21,12 +21,14 @@ export async function carregarFolha(competencia: string) {
     listarEmprestimosMeta(competencia),
   ]);
   const reposicao = somarDevolucao(emprestimos, competencia);
+  // Parcelas (2x+) em cartaoParcelas; compras 1x legadas somam no avulso com cartaoReal.
   const resultado = calcularMesPersistido(
     mes,
     fatura.faturaParcelas,
     preferencia.gastoPessoalMes,
     reposicao,
     fatura.faturaFixo,
+    fatura.faturaAvulsosCompra,
   );
   const resultadoAnterior = mesAnterior
     ? calcularMesPersistido(
@@ -51,8 +53,12 @@ export async function carregarFolha(competencia: string) {
     resumoAnterior,
     contas,
     parcelasCartao: fatura.parcelas,
+    avulsosCompraCartao: fatura.avulsosCompra,
     recorrentesCartao: fatura.recorrentes,
+    /** Só parcelas 2x+ (para a linha “Parcelas do cartão”). */
     faturaCartao: fatura.faturaParcelas,
+    /** Compras 1x ainda cadastradas como CompraCartao. */
+    faturaAvulsosCompra: fatura.faturaAvulsosCompra,
     cartaoFixo: fatura.faturaFixo,
     metaRendimentoPassivo: preferencia.metaRendimentoPassivo,
     gastoPessoalMes: preferencia.gastoPessoalMes,

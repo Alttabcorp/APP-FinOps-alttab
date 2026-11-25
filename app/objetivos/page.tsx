@@ -27,6 +27,7 @@ export default async function PaginaObjetivos() {
       gastoReal(folha.resultado.despesasVariaveis.gasolina) +
       folha.faturaCartao +
       folha.cartaoFixo +
+      (folha.faturaAvulsosCompra ?? 0) +
       folha.dto.cartaoReal
     : 0;
   const daCasa = anuais.filter((conta) => conta.lado === "CASA");

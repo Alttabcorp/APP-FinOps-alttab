@@ -15,7 +15,13 @@ import type {
 } from "@/lib/application/cartao-mapper";
 
 export type AcaoCartaoResultado =
-  | { ok: true; compra?: CompraCartaoDTO; recorrente?: RecorrenteCartaoDTO }
+  | {
+      ok: true;
+      compra?: CompraCartaoDTO;
+      recorrente?: RecorrenteCartaoDTO;
+      /** Compra em 1x virou lançamento avulso nesta fatura. */
+      avulsoCompetencia?: string;
+    }
   | { ok: false; erro: string };
 
 const falha = (erro: unknown, fallback: string): AcaoCartaoResultado => ({
@@ -30,9 +36,12 @@ const revalidar = () => {
 
 export async function salvarCompraCartaoAction(payload: CompraCartaoPayload): Promise<AcaoCartaoResultado> {
   try {
-    const compra = await salvarCompraCartao(payload);
+    const resultado = await salvarCompraCartao(payload);
     revalidar();
-    return { ok: true, compra };
+    if (resultado.tipo === "avulso") {
+      return { ok: true, avulsoCompetencia: resultado.competencia };
+    }
+    return { ok: true, compra: resultado.compra };
   } catch (erro) {
     return falha(erro, "Não foi possível salvar a compra.");
   }

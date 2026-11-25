@@ -43,13 +43,45 @@ export const parcelaNaCompetencia = (
   };
 };
 
+/** Compra em 2+ vezes — 1x é avulso, não parcela. */
+export const ehCompraParcelada = (compra: Pick<CompraCartaoEntrada, "parcelas">) =>
+  Math.trunc(compra.parcelas) > 1;
+
+/** Só parcelas (2x+). Compra em 1x entra em avulsos. */
 export const parcelasDoMes = (compras: CompraCartaoEntrada[], competencia: string) =>
   compras
+    .filter(ehCompraParcelada)
     .map((compra) => parcelaNaCompetencia(compra, competencia))
     .filter((parcela): parcela is ParcelaCartao => parcela != null);
 
+export type AvulsoCompraCartao = ParcelaCartao & { id?: string };
+
+/** Compras cadastradas em 1x que caem nesta fatura (legado / editáveis como compra). */
+export const avulsosCompraDoMes = (
+  compras: (CompraCartaoEntrada & { id?: string })[],
+  competencia: string,
+): AvulsoCompraCartao[] => {
+  const lista: AvulsoCompraCartao[] = [];
+  for (const compra of compras) {
+    if (ehCompraParcelada(compra)) continue;
+    const parcela = parcelaNaCompetencia(compra, competencia);
+    if (parcela) lista.push({ ...parcela, id: compra.id });
+  }
+  return lista;
+};
+
+const somarParcelas = (parcelas: ParcelaCartao[]) =>
+  round2(parcelas.reduce((acc, parcela) => acc + parcela.valor, 0));
+
+export const faturaParcelasDoMes = (compras: CompraCartaoEntrada[], competencia: string) =>
+  somarParcelas(parcelasDoMes(compras, competencia));
+
+export const faturaAvulsosCompraDoMes = (compras: CompraCartaoEntrada[], competencia: string) =>
+  somarParcelas(avulsosCompraDoMes(compras, competencia));
+
+/** Total das compras (parceladas + 1x) nesta fatura — sem fixos nem lançamentos avulsos. */
 export const faturaDoMes = (compras: CompraCartaoEntrada[], competencia: string) =>
-  round2(parcelasDoMes(compras, competencia).reduce((acc, parcela) => acc + parcela.valor, 0));
+  round2(faturaParcelasDoMes(compras, competencia) + faturaAvulsosCompraDoMes(compras, competencia));
 
 export type RecorrenteCartaoEntrada = {
   nome: string;

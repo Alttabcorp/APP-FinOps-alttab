@@ -20,7 +20,13 @@ import type {
   CompraCartaoPayload,
   RecorrenteCartaoDTO,
 } from "@/lib/application/cartao-mapper";
-import { faturaDoMes, parcelaNaCompetencia, somarRecorrentes, valorDaParcela } from "@/lib/domain/financeiro/cartao";
+import {
+  ehCompraParcelada,
+  faturaDoMes,
+  parcelaNaCompetencia,
+  somarRecorrentes,
+  valorDaParcela,
+} from "@/lib/domain/financeiro/cartao";
 import {
   avancarCompetencia,
   competenciaAtual,
@@ -46,7 +52,7 @@ type RascunhoFixo = {
 const rascunhoVazio = (competenciaInicio: string = competenciaAtual()): Rascunho => ({
   nome: "",
   valorTotal: 0,
-  parcelas: 12,
+  parcelas: 2,
   competenciaInicio,
 });
 
@@ -121,7 +127,13 @@ export function PainelCartao({
     startTransition(async () => {
       const resposta = await salvarCompraCartaoAction(payload);
       if (resposta.ok) {
-        setStatus(editor.id ? "Compra atualizada." : "Compra cadastrada.");
+        setStatus(
+          resposta.avulsoCompetencia
+            ? "Compra em 1x somada nos avulsos da fatura."
+            : editor.id
+              ? "Compra atualizada."
+              : "Compra parcelada cadastrada.",
+        );
         fechar();
         router.refresh();
       } else setErro(resposta.erro);
@@ -253,7 +265,7 @@ export function PainelCartao({
 
       <Bloco
         titulo="Compras parceladas"
-        nota="Cada parcela entra na fatura do mês correspondente."
+        nota="2x ou mais. Compra em 1x vai para avulsos da fatura."
         acao={
           <button
             className="btn-primary"
@@ -268,11 +280,11 @@ export function PainelCartao({
           </button>
         }
       >
-        {compras.length === 0 ? (
+        {compras.filter(ehCompraParcelada).length === 0 ? (
           <p className="vazio">Nenhuma compra parcelada. Cadastre o PC em 12 vezes.</p>
         ) : (
           <ul className="grid gap-3">
-            {compras.map((compra) => {
+            {compras.filter(ehCompraParcelada).map((compra) => {
               const parcela = parcelaNaCompetencia(compra, mesAtual);
               const fim = avancarCompetencia(compra.competenciaInicio, compra.parcelas - 1);
               return (
@@ -415,19 +427,21 @@ export function PainelCartao({
                 id="compra-parcelas"
                 label="Parcelas"
                 value={editor.parcelas}
-                min={1}
+                min={editor.id ? 1 : 2}
                 max={48}
                 onChange={(parcelas) => setEditor({ ...editor, parcelas })}
                 detalhe={
-                  editor.parcelas > 0 && editor.valorTotal > 0
-                    ? `${editor.parcelas}x de ${formatarMoeda(valorDaParcela(editor.valorTotal, editor.parcelas, 0))}`
-                    : undefined
+                  editor.parcelas === 1
+                    ? "1x entra como avulso da fatura"
+                    : editor.parcelas > 0 && editor.valorTotal > 0
+                      ? `${editor.parcelas}x de ${formatarMoeda(valorDaParcela(editor.valorTotal, editor.parcelas, 0))}`
+                      : "2x ou mais = parcelado"
                 }
               />
             </CampoLinha>
             <CampoMes
               id="compra-inicio"
-              label="Primeira parcela"
+              label={editor.parcelas === 1 ? "Mês da fatura" : "Primeira parcela"}
               value={editor.competenciaInicio}
               onChange={(competenciaInicio) => setEditor({ ...editor, competenciaInicio })}
             />

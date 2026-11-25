@@ -5,11 +5,15 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { BotaoEntrada } from "@/components/botao-entrada";
 import { BotaoFlutuante } from "@/components/botao-flutuante";
-import { marcarDepositoAction, salvarMesAction } from "@/app/actions/mes";
-import { ehAPagar } from "@/lib/application/checklist";
-import type { MesDTO } from "@/lib/application/mes-mapper";
+import { ModalMeioPagamentoConta } from "@/components/modal-meio-pagamento-conta";
+import { salvarMesAction } from "@/app/actions/mes";
+import { ehContaRecorrente } from "@/lib/application/checklist";
+import type { ItemDTO, MesDTO } from "@/lib/application/mes-mapper";
 import { avancarCompetencia, formatarCompetencia } from "@/lib/domain/financeiro/competencia";
-import type { CampoMarca } from "@/lib/domain/financeiro/transferencia";
+import {
+  ROTULOS_MEIO_PAGAMENTO_CONTA,
+  type MeioPagamentoConta,
+} from "@/lib/domain/financeiro/meio-pagamento-conta";
 import { formatarMoeda, formatarPercentual } from "@/lib/formatacao";
 
 type Props = {
@@ -22,14 +26,18 @@ type Props = {
   tetoCartao: number;
   faturaCartao: number;
   poupancaSugerida: number;
-  aportes: { poupanca: number; reserva: number; fundo: number; alttab: number; meta: number };
-  sugestoes: { poupanca: number; reserva: number; fundo: number; alttab: number; meta: number };
-  rotulos: { poupanca: string; reserva: string; fundo: string; alttab: string; meta: string };
   contas: { id: string; nome: string }[];
   meta: { nome: string; saldo: number; objetivo: number };
 };
 
-type Linha = { id: string; rotulo: string; valor: number; feito: boolean; grupo: string; sugerido?: number };
+type Linha = {
+  id: string;
+  indice: number;
+  rotulo: string;
+  valor: number;
+  feito: boolean;
+  meioPagamento: MeioPagamentoConta | null;
+};
 
 const TEM = (valor: number) => Math.abs(valor) >= 0.005;
 
@@ -43,9 +51,6 @@ export function PainelInicio({
   tetoCartao,
   faturaCartao,
   poupancaSugerida,
-  aportes,
-  sugestoes,
-  rotulos,
   contas: caixinhas,
   meta,
 }: Props) {
@@ -58,64 +63,56 @@ export function PainelInicio({
     setMes(mesInicial);
   }
   const [erro, setErro] = useState("");
+  const [pendentePagamento, setPendentePagamento] = useState<Linha | null>(null);
   const [, startTransition] = useTransition();
 
-  const contas: Linha[] = mes.itens
+  // Checklist do início: só contas recorrentes (CONTA). Cartão e aportes ficam em Gastos/Cartão.
+  const linhas: Linha[] = mes.itens
     .map((item, indice) => ({ item, indice }))
-    .filter(({ item }) => ehAPagar(item.tipo) && TEM(item.valor))
+    .filter(({ item }) => ehContaRecorrente(item.tipo) && TEM(item.valor))
     .map(({ item, indice }) => ({
       id: `item:${indice}`,
+      indice,
       rotulo: item.nome || "Sem nome",
       valor: item.valor,
       feito: item.pago,
-      grupo: "Contas",
+      meioPagamento: (item.meioPagamento ?? null) as MeioPagamentoConta | null,
     }));
 
-  const outras: Linha[] = [
-    { id: "cartao", rotulo: "Fatura do cartão", valor: faturaCartao, feito: mes.depositos.cartao, grupo: "Cartão" },
-    { id: "poupanca", rotulo: rotulos.poupanca, valor: aportes.poupanca, sugerido: sugestoes.poupanca, feito: mes.depositos.poupanca, grupo: "Investimentos" },
-    { id: "reserva", rotulo: rotulos.reserva, valor: aportes.reserva, sugerido: sugestoes.reserva, feito: mes.depositos.reserva, grupo: "Investimentos" },
-    { id: "fundo", rotulo: rotulos.fundo, valor: aportes.fundo, sugerido: sugestoes.fundo, feito: mes.depositos.fundo, grupo: "Investimentos" },
-    { id: "alttab", rotulo: rotulos.alttab, valor: aportes.alttab, sugerido: sugestoes.alttab, feito: mes.depositos.alttab, grupo: "Investimentos" },
-    { id: "meta", rotulo: rotulos.meta, valor: aportes.meta, sugerido: sugestoes.meta, feito: mes.depositos.meta, grupo: "Investimentos" },
-  ].filter((linha) => TEM(linha.valor));
-
-  const linhas = [...contas, ...outras];
   const feitos = linhas.filter((linha) => linha.feito).length;
-  const grupos = ["Contas", "Cartão", "Investimentos"].map((nome) => ({
-    nome,
-    linhas: linhas.filter((linha) => linha.grupo === nome),
-  }));
 
-  const alternar = (linha: Linha, feito: boolean) => {
+  const gravarItem = (indice: number, patch: Partial<ItemDTO>) => {
     if (mes.fechado) return;
     setErro("");
     const anterior = mes;
-    if (linha.id.startsWith("item:")) {
-      const indice = Number(linha.id.slice(5));
-      const proximo = {
-        ...mes,
-        itens: mes.itens.map((item, i) => (i === indice ? { ...item, pago: feito } : item)),
-      };
-      setMes(proximo);
-      startTransition(async () => {
-        const resposta = await salvarMesAction(proximo);
-        if (!resposta.ok) {
-          setMes(anterior);
-          setErro(resposta.erro);
-        }
-      });
-      return;
-    }
-    const campo = linha.id as CampoMarca;
-    setMes({ ...mes, depositos: { ...mes.depositos, [campo]: feito } });
+    const proximo = {
+      ...mes,
+      itens: mes.itens.map((item, i) => (i === indice ? { ...item, ...patch } : item)),
+    };
+    setMes(proximo);
     startTransition(async () => {
-      const resposta = await marcarDepositoAction(competencia, campo, feito);
+      const resposta = await salvarMesAction(proximo);
       if (!resposta.ok) {
         setMes(anterior);
         setErro(resposta.erro);
       }
     });
+  };
+
+  const pedirOuDesmarcar = (linha: Linha, feito: boolean) => {
+    if (mes.fechado) return;
+    if (feito) {
+      setPendentePagamento(linha);
+      return;
+    }
+    gravarItem(linha.indice, { pago: false, meioPagamento: null });
+  };
+
+  const confirmarPagamento = (meio: MeioPagamentoConta) => {
+    if (!pendentePagamento) return;
+    const indice = pendentePagamento.indice;
+    setPendentePagamento(null);
+    gravarItem(indice, { pago: true, meioPagamento: meio });
   };
 
   const pctMeta = meta.objetivo > 0 ? Math.min(100, Math.max(0, (meta.saldo / meta.objetivo) * 100)) : 0;
@@ -231,57 +228,60 @@ export function PainelInicio({
             <BotaoEntrada contas={caixinhas} rotulo="Entrada extra" />
           </div>
         </header>
+        <p className="mt-1 text-xs text-mute">
+          Só contas recorrentes do mês. Ao marcar paga, diga se foi dinheiro, cartão ou vale.
+        </p>
         {erro ? (
           <p className="mt-2 text-sm text-outflow" role="alert">
             {erro}
           </p>
         ) : null}
         {linhas.length === 0 ? (
-          <p className="mt-4 text-sm text-mute">Nada para pagar neste mês. Cadastre contas em “Detalhes do mês”.</p>
+          <p className="mt-4 text-sm text-mute">Nenhuma conta recorrente neste mês. Cadastre em Gastos.</p>
         ) : (
-          grupos
-            .filter((grupo) => grupo.linhas.length > 0)
-            .map((grupo) => (
-              <div key={grupo.nome} className="mt-4">
-                <h3 className="kpi-rotulo">{grupo.nome}</h3>
-                <ul>
-                  {grupo.linhas.map((linha) => {
-                    const id = `inicio-${linha.id}`;
-                    return (
-                      <li key={linha.id} className="border-b border-line last:border-b-0">
-                        <label
-                          htmlFor={id}
-                          className={`flex items-center gap-3 py-3 ${mes.fechado ? "" : "cursor-pointer"} ${
-                            linha.feito ? "text-mute" : ""
-                          }`}
-                        >
-                          <input
-                            id={id}
-                            className="checkbox-pago shrink-0"
-                            type="checkbox"
-                            checked={linha.feito}
-                            disabled={mes.fechado}
-                            onChange={(evento) => alternar(linha, evento.target.checked)}
-                          />
-                          <span className="min-w-0 flex-1">
-                            <span className={`block truncate ${linha.feito ? "line-through" : ""}`}>{linha.rotulo}</span>
-                            {linha.sugerido !== undefined ? (
-                              <span className="block text-xs text-mute no-underline">
-                                Sugerido {formatarMoeda(linha.sugerido)}
-                                {Math.abs(linha.sugerido - linha.valor) >= 0.005 ? " · você ajustou o valor" : ""}
-                              </span>
-                            ) : null}
-                          </span>
-                          <span className="money shrink-0 text-sm">{formatarMoeda(linha.valor)}</span>
-                        </label>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ))
+          <ul className="mt-4">
+            {linhas.map((linha) => {
+              const id = `inicio-${linha.id}`;
+              return (
+                <li key={linha.id} className="border-b border-line last:border-b-0">
+                  <label
+                    htmlFor={id}
+                    className={`flex items-center gap-3 py-3 ${mes.fechado ? "" : "cursor-pointer"} ${
+                      linha.feito ? "text-mute" : ""
+                    }`}
+                  >
+                    <input
+                      id={id}
+                      className="checkbox-pago shrink-0"
+                      type="checkbox"
+                      checked={linha.feito}
+                      disabled={mes.fechado}
+                      onChange={(evento) => pedirOuDesmarcar(linha, evento.target.checked)}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className={`block truncate ${linha.feito ? "line-through" : ""}`}>{linha.rotulo}</span>
+                      {linha.feito && linha.meioPagamento ? (
+                        <span className="block text-xs text-mute">
+                          {ROTULOS_MEIO_PAGAMENTO_CONTA[linha.meioPagamento]}
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="money shrink-0 text-sm">{formatarMoeda(linha.valor)}</span>
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </section>
+
+      <ModalMeioPagamentoConta
+        aberto={pendentePagamento != null}
+        nome={pendentePagamento?.rotulo ?? ""}
+        valor={pendentePagamento?.valor ?? 0}
+        onConfirmar={confirmarPagamento}
+        onCancelar={() => setPendentePagamento(null)}
+      />
 
       {mes.fechado ? null : (
         <BotaoFlutuante

@@ -11,6 +11,7 @@ import { CampoPassos } from "@/components/campo-passos";
 import { CampoMoeda } from "@/components/campo-moeda";
 import { AcoesCadastro, FormularioModal } from "@/components/formulario-modal";
 import { Modal } from "@/components/modal";
+import { ModalMeioPagamentoConta } from "@/components/modal-meio-pagamento-conta";
 import type { LinhaMeta } from "@/lib/application/dashboard-visao";
 import { ehAPagar, progressoPagamento } from "@/lib/application/checklist";
 import type { ItemDTO, MesDTO } from "@/lib/application/mes-mapper";
@@ -18,6 +19,10 @@ import type { ContaAnualDTO } from "@/lib/application/anual-mapper";
 import { valorDaParcela, type ParcelaCartao } from "@/lib/domain/financeiro/cartao";
 import { formatarMesCalendario, sugerirReservaMensal } from "@/lib/domain/financeiro/anual";
 import { formatarCompetenciaCurta } from "@/lib/domain/financeiro/competencia";
+import {
+  ROTULOS_MEIO_PAGAMENTO_CONTA,
+  type MeioPagamentoConta,
+} from "@/lib/domain/financeiro/meio-pagamento-conta";
 import type { ResultadoMes } from "@/lib/domain/financeiro/tipos";
 import type { CampoMarca } from "@/lib/domain/financeiro/transferencia";
 import { formatarMoeda } from "@/lib/formatacao";
@@ -38,11 +43,17 @@ type Props = {
   totais?: ResultadoMes;
   metas?: LinhaMeta[];
   superficie?: SuperficieNota;
-  onToggle: (indice: number, pago: boolean) => void;
+  onToggle: (indice: number, pago: boolean, meioPagamento?: MeioPagamentoConta | null) => void;
   onSalvarConta: (indice: number, valor: number, pago: boolean) => void;
   onSalvarItem: (indice: number, valor: number) => void;
   onSalvarCampo: (campo: CampoNota, valor: number) => void;
-  onNovaConta?: (nome: string, valor: number, pago: boolean, tipo?: "EXTRA_MES" | "CONTA") => void;
+  onNovaConta?: (
+    nome: string,
+    valor: number,
+    pago: boolean,
+    tipo?: "EXTRA_MES" | "CONTA",
+    meioPagamento?: MeioPagamentoConta | null,
+  ) => void;
   contasAnuais?: ContaAnualDTO[];
   onNovoBico?: (nome: string, valor: number) => void;
   onRemover?: (indice: number) => void;
@@ -460,8 +471,8 @@ export function NotaMes({
             editor.tipo === "anual" ? (contasAnuais.find((conta) => conta.id === editor.id) ?? null) : null
           }
           onClose={() => setEditor(null)}
-          onSalvar={(nome, valor, pago, tipo) => {
-            onNovaConta(nome, valor, pago, tipo);
+          onSalvar={(nome, valor, pago, tipo, meioPagamento) => {
+            onNovaConta(nome, valor, pago, tipo, meioPagamento);
             setEditor(null);
           }}
           onSalvouExterno={() => setEditor(null)}
@@ -655,7 +666,7 @@ function LinhaConta({
 }: {
   item: ItemDTO;
   indice: number;
-  onToggle: (indice: number, pago: boolean) => void;
+  onToggle: (indice: number, pago: boolean, meioPagamento?: MeioPagamentoConta | null) => void;
   onChange: (valor: number) => void;
   onRemover?: () => void;
   onEditarAnual?: () => void;
@@ -665,6 +676,7 @@ function LinhaConta({
   const id = `nota-pago-${item.tipo}-${indice}`;
   const [renomeando, setRenomeando] = useState(false);
   const [rascunho, setRascunho] = useState(item.nome);
+  const [pedindoMeio, setPedindoMeio] = useState(false);
   const concluirNome = () => {
     setRenomeando(false);
     const limpo = rascunho.trim();
@@ -682,7 +694,10 @@ function LinhaConta({
           checked={item.pago}
           disabled={somenteLeitura}
           aria-label={`${item.nome || "Conta"} paga`}
-          onChange={(evento) => onToggle(indice, evento.target.checked)}
+          onChange={(evento) => {
+            if (evento.target.checked) setPedindoMeio(true);
+            else onToggle(indice, false, null);
+          }}
         />
         <span className="nota-nome">
           {renomeando ? (
@@ -718,6 +733,9 @@ function LinhaConta({
           )}
           {item.tipo === "EXTRA_MES" ? <span className="nota-tag">extra</span> : null}
           {item.tipo === "ANUAL" ? <span className="nota-tag">anual</span> : null}
+          {item.pago && item.meioPagamento ? (
+            <span className="nota-tag">{ROTULOS_MEIO_PAGAMENTO_CONTA[item.meioPagamento]}</span>
+          ) : null}
         </span>
         <div className="nota-campo">
           <CampoMoeda
@@ -742,6 +760,16 @@ function LinhaConta({
         ) : null}
         {onRemover && !somenteLeitura ? <BotaoRemover nome={item.nome || "conta"} onClick={onRemover} /> : null}
       </div>
+      <ModalMeioPagamentoConta
+        aberto={pedindoMeio}
+        nome={item.nome || "Conta"}
+        valor={item.valor}
+        onConfirmar={(meio) => {
+          setPedindoMeio(false);
+          onToggle(indice, true, meio);
+        }}
+        onCancelar={() => setPedindoMeio(false)}
+      />
     </li>
   );
 }
@@ -905,7 +933,13 @@ export function ModalNovaConta({
   inicioCartaoPadrao?: string;
   anualEditando: ContaAnualDTO | null;
   onClose: () => void;
-  onSalvar: (nome: string, valor: number, pago: boolean, tipo: "EXTRA_MES" | "CONTA") => void;
+  onSalvar: (
+    nome: string,
+    valor: number,
+    pago: boolean,
+    tipo: "EXTRA_MES" | "CONTA",
+    meioPagamento?: MeioPagamentoConta | null,
+  ) => void;
   onSalvouExterno: () => void;
 }) {
   const router = useRouter();
@@ -916,6 +950,7 @@ export function ModalNovaConta({
   const [nome, setNome] = useState(anualEditando?.nome ?? "");
   const [valor, setValor] = useState(anualEditando?.valor ?? 0);
   const [pago, setPago] = useState(true);
+  const [meioPagamento, setMeioPagamento] = useState<MeioPagamentoConta>("DINHEIRO");
   const [parcelado, setParcelado] = useState(false);
   const [parcelas, setParcelas] = useState(2);
   const [inicio, setInicio] = useState(inicioCartaoPadrao ?? competencia);
@@ -966,7 +1001,13 @@ export function ModalNovaConta({
       return;
     }
     if (tipo === "mes" || tipo === "fixa") {
-      onSalvar(nome, valor, pago, tipo === "fixa" ? "CONTA" : "EXTRA_MES");
+      onSalvar(
+        nome,
+        valor,
+        pago,
+        tipo === "fixa" ? "CONTA" : "EXTRA_MES",
+        pago ? meioPagamento : null,
+      );
       return;
     }
     if (valor <= 0) {
@@ -1140,6 +1181,31 @@ export function ModalNovaConta({
               />
               <span>Já pagamos</span>
             </label>
+            {pago ? (
+              <fieldset className="tipo-conta" aria-label="Como pagou">
+                <legend className="sr-only">Como pagou</legend>
+                {(
+                  [
+                    { id: "DINHEIRO" as const, rotulo: "Dinheiro" },
+                    { id: "CARTAO" as const, rotulo: "Cartão" },
+                    { id: "VALE" as const, rotulo: "Vale-alimentação" },
+                  ] as const
+                ).map((opcao) => (
+                  <label
+                    key={opcao.id}
+                    className={`tipo-conta-opcao ${meioPagamento === opcao.id ? "is-ativo" : ""}`}
+                  >
+                    <input
+                      type="radio"
+                      name="nota-nova-meio"
+                      checked={meioPagamento === opcao.id}
+                      onChange={() => setMeioPagamento(opcao.id)}
+                    />
+                    <span className="tipo-conta-rotulo">{opcao.rotulo}</span>
+                  </label>
+                ))}
+              </fieldset>
+            ) : null}
           </>
         )}
       </FormularioModal>

@@ -4,6 +4,9 @@ import type { ItemDTO } from "@/lib/application/mes-mapper";
 export const ehAPagar = (tipo: TipoItem) =>
   tipo === "CONTA" || tipo === "EXTRA_MES" || tipo === "ANUAL";
 
+/** Contas fixas que se repetem todo mês (checklist do início). */
+export const ehContaRecorrente = (tipo: TipoItem) => tipo === "CONTA";
+
 export const progressoPagamento = (itens: ItemDTO[]) => {
   const contas = itens.filter((item) => ehAPagar(item.tipo));
   const pagas = contas.filter((item) => item.pago);

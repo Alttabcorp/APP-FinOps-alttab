@@ -10,11 +10,24 @@ import {
   obterDiaFechamentoCartao,
   obterDiaPagamentoCartao,
 } from "@/lib/application/lancamento-service";
-import { competenciaAtual, isCompetencia } from "@/lib/domain/financeiro/competencia";
+import { avancarCompetencia, competenciaAtual, isCompetencia } from "@/lib/domain/financeiro/competencia";
+import { isAbaGastos, isTemaDia, type AbaGastos, type TemaDia } from "@/lib/ui/abas";
 
 export const dynamic = "force-dynamic";
 
-type Props = { searchParams: Promise<{ mes?: string; add?: string }> };
+type Props = { searchParams: Promise<{ mes?: string; add?: string; aba?: string; tema?: string }> };
+
+const abaInicialDespesas = (aba: string | undefined, add: string | undefined): AbaGastos => {
+  if (add === "feira" || add === "gasolina" || add === "cartao") return "dia";
+  if (isAbaGastos(aba)) return aba;
+  return "fixas";
+};
+
+const temaInicialDespesas = (tema: string | undefined, add: string | undefined): TemaDia => {
+  if (add === "feira" || add === "gasolina" || add === "cartao") return add;
+  if (isTemaDia(tema)) return tema;
+  return "feira";
+};
 
 const nomeConta = (
   contas: { finalidade: string; nome: string; recebePoupanca?: boolean }[],
@@ -29,14 +42,17 @@ const nomeConta = (
 };
 
 export default async function PaginaDespesas({ searchParams }: Props) {
-  const { mes, add } = await searchParams;
+  const { mes, add, aba, tema } = await searchParams;
   const competencia = mes && isCompetencia(mes) ? mes : competenciaAtual();
+  const abaInicial = abaInicialDespesas(aba, add);
+  const temaInicial = temaInicialDespesas(tema, add);
   const folha = await carregarFolha(competencia);
   if (!folha) notFound();
 
   const faturaHoje = await competenciaDaFaturaHoje();
+  // Inclui o mês seguinte: feira/gasolina no crédito após o fechamento caem na fatura seguinte.
   const [lancamentos, contasAnuais, compras, recorrentes, diaFechamento, diaPagamento] = await Promise.all([
-    listarLancamentos([...new Set([competencia, faturaHoje])]),
+    listarLancamentos([...new Set([competencia, avancarCompetencia(competencia), faturaHoje])]),
     listarContasAnuais(),
     listarComprasCartao(),
     listarRecorrentesCartao(),
@@ -66,6 +82,7 @@ export default async function PaginaDespesas({ searchParams }: Props) {
         gasto={resultado.resumo.gasto}
         sobrou={resultado.resumo.sobrou}
         cartaoParcelas={folha.faturaCartao}
+        cartaoAvulsosCompra={folha.faturaAvulsosCompra}
         cartaoFixo={folha.cartaoFixo}
         sugestoes={{
           feira: resultado.despesasVariaveis.feira.sugestao,
@@ -80,6 +97,8 @@ export default async function PaginaDespesas({ searchParams }: Props) {
         diaPagamento={diaPagamento}
         tetoCartao={resultado.despesasVariaveis.cartao.teto}
         abrirCategoria={isCategoriaVariavel(add) ? add : null}
+        abaInicial={abaInicial}
+        temaInicial={temaInicial}
         aportes={[
           {
             campo: "poupanca",

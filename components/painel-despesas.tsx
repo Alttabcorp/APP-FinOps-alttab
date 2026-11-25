@@ -1,5 +1,6 @@
 "use client";
 
+import { AbasSecao } from "@/components/abas-secao";
 import { BotaoFlutuante } from "@/components/botao-flutuante";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -14,10 +15,24 @@ import { ModalNovaConta } from "@/components/nota-mes";
 import { PainelCartao } from "@/components/painel-cartao";
 import type { ContaAnualDTO } from "@/lib/application/anual-mapper";
 import type { CompraCartaoDTO, RecorrenteCartaoDTO } from "@/lib/application/cartao-mapper";
-import type { LancamentoDTO, CategoriaVariavel } from "@/lib/application/lancamento-service";
+import {
+  type LancamentoDTO,
+  type CategoriaVariavel,
+  type MeioPagamentoVariavel,
+  type TemaVariavel,
+  descricaoComPrefixo,
+  detalheDescricaoLancamento,
+  ehLancamentoDoTema,
+  meioPagamentoLancamento,
+  resumoLancamentosHoje,
+  resumoTemaNoMes,
+  ROTULOS_MEIO_PAGAMENTO,
+  somarLancamentos,
+} from "@/lib/application/lancamento-service";
 import type { ItemDTO, MesDTO } from "@/lib/application/mes-mapper";
 import { avancarCompetencia, formatarCompetencia, formatarNomeMes } from "@/lib/domain/financeiro/competencia";
 import { formatarMoeda } from "@/lib/formatacao";
+import { isAbaGastos, isTemaDia, type AbaGastos, type TemaDia } from "@/lib/ui/abas";
 
 type Props = {
   competencia: string;
@@ -26,6 +41,8 @@ type Props = {
   gasto: number;
   sobrou: number;
   cartaoParcelas: number;
+  /** Compras 1x ainda cadastradas como CompraCartao (somam nos avulsos). */
+  cartaoAvulsosCompra?: number;
   cartaoFixo: number;
   sugestoes: { feira: number; gasolina: number };
   aportes: {
@@ -37,6 +54,10 @@ type Props = {
   }[];
   lancamentos: LancamentoDTO[];
   abrirCategoria?: CategoriaVariavel | null;
+  /** Aba inicial (?aba= ou inferida de ?add=). */
+  abaInicial?: AbaGastos;
+  /** Sub-aba de Dia a dia (?tema=). */
+  temaInicial?: TemaDia;
   contasAnuais: ContaAnualDTO[];
   compras: CompraCartaoDTO[];
   recorrentes: RecorrenteCartaoDTO[];
@@ -53,8 +74,6 @@ const ROTULO_CATEGORIA: Record<CategoriaVariavel, string> = {
   cartao: "Cartão avulso",
 };
 
-const CAMPO_CATEGORIA = { feira: "feiraReal", gasolina: "gasolinaReal", cartao: "cartaoReal" } as const;
-
 const formatarDia = (iso: string) =>
   new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" }).format(new Date(iso));
 
@@ -67,11 +86,14 @@ export function PainelDespesas({
   gasto,
   sobrou,
   cartaoParcelas,
+  cartaoAvulsosCompra = 0,
   cartaoFixo,
   sugestoes,
   aportes,
   lancamentos,
   abrirCategoria = null,
+  abaInicial = "fixas",
+  temaInicial = "feira",
   contasAnuais,
   compras,
   recorrentes,
@@ -88,12 +110,14 @@ export function PainelDespesas({
     setMesRecebido(mesInicial);
     setMes(mesInicial);
   }
+  const [aba, setAba] = useState<AbaGastos>(abaInicial);
+  const [temaDia, setTemaDia] = useState<TemaDia>(temaInicial);
   const [aberto, setAberto] = useState(false);
   const [erro, setErro] = useState("");
   const [categoria, setCategoria] = useState<CategoriaVariavel | null>(mesInicial.fechado ? null : abrirCategoria);
   const [valorGasto, setValorGasto] = useState(0);
   const [descGasto, setDescGasto] = useState("");
-  const [noCartao, setNoCartao] = useState(false);
+  const [meioPagamento, setMeioPagamento] = useState<MeioPagamentoVariavel>("dinheiro");
   const [erroGasto, setErroGasto] = useState("");
   const [anualId, setAnualId] = useState<string | null>(null);
   const [cartaoAberto, setCartaoAberto] = useState(false);
@@ -102,6 +126,29 @@ export function PainelDespesas({
   const [pendente, startTransition] = useTransition();
 
   useEffect(() => setMes(mesInicial), [mesInicial]);
+  useEffect(() => setAba(abaInicial), [abaInicial]);
+  useEffect(() => setTemaDia(temaInicial), [temaInicial]);
+
+  const sincronizarUrl = (proximaAba: AbaGastos, proximoTema: TemaDia) => {
+    const params = new URLSearchParams();
+    params.set("mes", competencia);
+    if (proximaAba !== "fixas") params.set("aba", proximaAba);
+    if (proximaAba === "dia" && proximoTema !== "feira") params.set("tema", proximoTema);
+    router.replace(`/despesas?${params.toString()}`, { scroll: false });
+  };
+
+  const irParaAba = (id: string) => {
+    const proxima: AbaGastos = isAbaGastos(id) ? id : "fixas";
+    setAba(proxima);
+    sincronizarUrl(proxima, temaDia);
+  };
+
+  const irParaTemaDia = (id: string) => {
+    const proximo: TemaDia = isTemaDia(id) ? id : "feira";
+    setTemaDia(proximo);
+    setAba("dia");
+    sincronizarUrl("dia", proximo);
+  };
 
   const fechado = mes.fechado;
   const linhasDe = (tipoItem: ItemDTO["tipo"]) =>
@@ -144,25 +191,32 @@ export function PainelDespesas({
     if (!categoria) return;
     setErroGasto("");
     startTransition(async () => {
-      // Feira/gasolina pagas no cartão entram na fatura (conforme o fechamento), não no caixa de agora.
-      const viaCartao = noCartao && categoria !== "cartao";
+      const tema = categoria === "cartao" ? null : (categoria as TemaVariavel);
+      // Feira/gasolina no crédito entram na fatura (fechamento); vale e dinheiro ficam na categoria.
+      const viaCartao = meioPagamento === "cartao" && tema != null;
+      const viaVale = meioPagamento === "vale" && tema != null;
       const resposta = await adicionarLancamentoAction({
         competencia,
         categoria: viaCartao ? "cartao" : categoria,
         valor: valorGasto,
         descricao: viaCartao
-          ? [ROTULO_CATEGORIA[categoria], descGasto.trim()].filter(Boolean).join(" · ")
-          : descGasto,
+          ? descricaoComPrefixo(ROTULO_CATEGORIA[categoria], descGasto)
+          : viaVale
+            ? descricaoComPrefixo("Vale", descGasto)
+            : descGasto,
       });
       if (resposta.ok) {
+        const rotulo = ROTULO_CATEGORIA[categoria].toLowerCase();
         setStatus(
           viaCartao
-            ? `${formatarMoeda(valorGasto)} de ${ROTULO_CATEGORIA[categoria].toLowerCase()} somados na fatura do cartão.`
-            : `${formatarMoeda(valorGasto)} somados em ${ROTULO_CATEGORIA[categoria].toLowerCase()}.`,
+            ? `${formatarMoeda(valorGasto)} de ${rotulo} somados na fatura do cartão.`
+            : viaVale
+              ? `${formatarMoeda(valorGasto)} de ${rotulo} no vale.`
+              : `${formatarMoeda(valorGasto)} somados em ${rotulo}.`,
         );
         setValorGasto(0);
         setDescGasto("");
-        setNoCartao(false);
+        setMeioPagamento("dinheiro");
         router.refresh();
       } else setErroGasto(resposta.erro);
     });
@@ -210,14 +264,23 @@ export function PainelDespesas({
     });
   };
 
-  const alterarVariavel = (campo: "feiraReal" | "gasolinaReal" | "cartaoReal", novo: number) => {
-    if (Math.abs(mes[campo] - novo) < 0.005) return;
-    gravar({ ...mes, [campo]: novo }, "Valor atualizado.");
-  };
-
-  const adicionar = (nome: string, valor: number, pago: boolean, tipo: "EXTRA_MES" | "CONTA") => {
+  const adicionar = (
+    nome: string,
+    valor: number,
+    pago: boolean,
+    tipo: "EXTRA_MES" | "CONTA",
+    meioPagamento?: ItemDTO["meioPagamento"],
+  ) => {
     const ordem = mes.itens.reduce((acc, item) => Math.max(acc, item.ordem), -1) + 1;
-    const novo: ItemDTO = { tipo, nome: nome.trim() || "Sem nome", valor, ordem, pago, papel: null };
+    const novo: ItemDTO = {
+      tipo,
+      nome: nome.trim() || "Sem nome",
+      valor,
+      ordem,
+      pago,
+      meioPagamento: pago ? (meioPagamento ?? null) : null,
+      papel: null,
+    };
     gravar({ ...mes, itens: [...mes.itens, novo] }, `Despesa de ${formatarMoeda(valor)} registrada.`, () =>
       setAberto(false),
     );
@@ -293,55 +356,206 @@ export function PainelDespesas({
       </ul>
     );
 
-  const linhaVariavel = (
-    rotulo: string,
-    campo: "feiraReal" | "gasolinaReal" | "cartaoReal",
-    dica: string,
-    cat: CategoriaVariavel,
-  ) => (
-    <li className="ganho-linha">
-      <span className="min-w-0 flex-1">
-        <span className="block truncate">{rotulo}</span>
-        <span className="block text-xs text-mute">{dica}</span>
-      </span>
-      {fechado ? null : (
-        <button
-          type="button"
-          className="btn text-xs"
-          onClick={() => {
-            setErroGasto("");
-            setNoCartao(false);
-            setCategoria(cat);
-          }}
-        >
-          + Adicionar
-        </button>
-      )}
-      <div className="ganho-valor">
-        <CampoMoeda
-          id={`variavel-${campo}`}
-          label={rotulo}
-          rotuloVisivel={false}
-          compact
-          value={mes[campo]}
-          disabled={fechado || pendente}
-          onChange={() => undefined}
-          onCommit={(novo) => alterarVariavel(campo, novo)}
-        />
-      </div>
-    </li>
+  const faturaAbertaEmOutroMes = faturaHoje !== competencia;
+  // Avulso = compra 1x na fatura (janela de fechamento), inclusive feira/gasolina no crédito.
+  const competenciaFaturaAvulso = faturaAbertaEmOutroMes ? faturaHoje : competencia;
+  const lancamentosCartaoAvulso = lancamentos.filter(
+    (item) => item.categoria === "cartao" && item.competencia === competenciaFaturaAvulso,
   );
+  // Compras 1x legadas (CompraCartao) só quando a tela é a própria fatura.
+  const valorCartaoAvulso =
+    somarLancamentos(lancamentosCartaoAvulso) + (faturaAbertaEmOutroMes ? 0 : cartaoAvulsosCompra);
+
+  const lancamentosDaCategoria = (cat: CategoriaVariavel) =>
+    lancamentos.filter((item) => {
+      if (cat === "cartao") return item.categoria === "cartao" && item.competencia === faturaHoje;
+      return item.categoria === cat && item.competencia === competencia;
+    });
+
+  const resumoFeira = resumoTemaNoMes(lancamentos, "feira", competencia);
+  const resumoGasolina = resumoTemaNoMes(lancamentos, "gasolina", competencia);
+
+  const textoPorMeio = (resumo: ReturnType<typeof resumoTemaNoMes>) => {
+    const partes = (["dinheiro", "vale", "cartao"] as const)
+      .filter((meio) => resumo.porMeio[meio] > 0)
+      .map((meio) => `${ROTULOS_MEIO_PAGAMENTO[meio]} ${formatarMoeda(resumo.porMeio[meio])}`);
+    return partes.length > 0 ? partes.join(" · ") : "Sem lançamentos ainda";
+  };
+
+  const abrirTema = (cat: CategoriaVariavel) => {
+    setErroGasto("");
+    setMeioPagamento("dinheiro");
+    setCategoria(cat);
+  };
+
+  const abrirTemaNaAba = (cat: CategoriaVariavel) => {
+    const tema: TemaDia = cat === "gasolina" ? "gasolina" : cat === "cartao" ? "cartao" : "feira";
+    irParaTemaDia(tema);
+    abrirTema(cat);
+  };
+
+  /** Painel dedicado de Feira ou Gasolina: total + meios + lista completa. */
+  const painelTemaVariavel = (
+    tema: TemaVariavel,
+    resumo: ReturnType<typeof resumoTemaNoMes>,
+    sugestao: number,
+    rotuloSugestao: string,
+  ) => {
+    const hoje = resumoLancamentosHoje(resumo.itens);
+    return (
+      <section className="caixa" aria-label={ROTULO_CATEGORIA[tema]}>
+        <header className="caixa-topo">
+          <div className="min-w-0 flex-1">
+            <h2 className="caixa-titulo">{ROTULO_CATEGORIA[tema]}</h2>
+            <p className="caixa-funcao">
+              {textoPorMeio(resumo)} · {rotuloSugestao} {formatarMoeda(sugestao)}
+              {hoje.vezes > 0
+                ? ` · hoje: ${hoje.vezes} ${hoje.vezes === 1 ? "vez" : "vezes"} (${formatarMoeda(hoje.total)})`
+                : ""}
+            </p>
+          </div>
+          <p className="money shrink-0 text-lg font-semibold text-outflow">{formatarMoeda(resumo.total)}</p>
+        </header>
+        <div className="caixa-corpo">
+          {fechado ? null : (
+            <button type="button" className="btn text-sm self-start" onClick={() => abrirTema(tema)}>
+              + Adicionar
+            </button>
+          )}
+          {resumo.itens.length === 0 ? (
+            <p className="text-sm text-mute">Nenhum lançamento neste mês.</p>
+          ) : (
+            <ul>
+              {resumo.itens.map((item) => {
+                const meio = meioPagamentoLancamento(item);
+                const detalhe = detalheDescricaoLancamento(item);
+                return (
+                  <li key={item.id} className="ganho-linha">
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">
+                        {ROTULOS_MEIO_PAGAMENTO[meio]}
+                        {detalhe ? ` · ${detalhe}` : ""}
+                      </span>
+                      <span className="block text-xs text-mute">{formatarDia(item.data)}</span>
+                    </span>
+                    <span className="money shrink-0 text-sm">{formatarMoeda(item.valor)}</span>
+                    {fechado ? null : (
+                      <button
+                        type="button"
+                        className="btn text-xs"
+                        disabled={pendente}
+                        onClick={() => desfazerGasto(item.id)}
+                      >
+                        Remover
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </section>
+    );
+  };
+
+  const painelCartaoDia = () =>
+    painel(
+      "Cartão nesta fatura",
+      faturaAbertaEmOutroMes
+        ? `Compras 1x da fatura de ${formatarNomeMes(faturaHoje)} (fecha dia ${fechamento}), incl. feira/gasolina no crédito`
+        : `Compras 1x desta fatura (fecha dia ${fechamento}), incl. feira/gasolina no crédito`,
+      valorCartaoAvulso + cartaoParcelas + cartaoFixo,
+      <div className="flex flex-wrap gap-2">
+        {fechado ? null : (
+          <button type="button" className="btn text-sm self-start" onClick={() => abrirTema("cartao")}>
+            + Adicionar avulso
+          </button>
+        )}
+        <button type="button" className="btn text-sm self-start" onClick={() => setCartaoAberto(true)}>
+          Compras e fixos
+        </button>
+        <Link className="btn text-sm self-start" href={`/cartao?mes=${competenciaFaturaAvulso}`}>
+          Ver fatura
+        </Link>
+      </div>,
+      <ul>
+        <li className="ganho-linha">
+          <span className="min-w-0 flex-1">
+            <span className="block">Cartão avulso (1x)</span>
+            <span className="block text-xs text-mute">
+              {lancamentosCartaoAvulso.length === 0
+                ? "Nenhuma compra 1x nesta fatura"
+                : `${lancamentosCartaoAvulso.length} ${lancamentosCartaoAvulso.length === 1 ? "compra" : "compras"} na fatura`}
+            </span>
+          </span>
+          <span className="money shrink-0 text-sm">{formatarMoeda(valorCartaoAvulso)}</span>
+        </li>
+        {lancamentosCartaoAvulso.slice(0, 12).map((item) => {
+          const tema = ehLancamentoDoTema(item, "feira")
+            ? "Feira"
+            : ehLancamentoDoTema(item, "gasolina")
+              ? "Gasolina"
+              : "Avulso";
+          const detalhe = detalheDescricaoLancamento(item);
+          return (
+            <li key={item.id} className="ganho-linha">
+              <span className="min-w-0 flex-1">
+                <span className="block truncate">
+                  {tema}
+                  {detalhe ? ` · ${detalhe}` : ""}
+                </span>
+                <span className="block text-xs text-mute">{formatarDia(item.data)}</span>
+              </span>
+              <span className="money shrink-0 text-sm">{formatarMoeda(item.valor)}</span>
+              {fechado ? null : (
+                <button
+                  type="button"
+                  className="btn text-xs"
+                  disabled={pendente}
+                  onClick={() => desfazerGasto(item.id)}
+                >
+                  Remover
+                </button>
+              )}
+            </li>
+          );
+        })}
+        {lancamentosCartaoAvulso.length > 12 ? (
+          <li className="text-xs text-mute">+ {lancamentosCartaoAvulso.length - 12} · ver fatura completa</li>
+        ) : null}
+        {faturaAbertaEmOutroMes ? (
+          <li className="ganho-linha">
+            <span className="min-w-0 flex-1 text-sm text-mute">
+              Compras após o dia {fechamento} entram em {formatarNomeMes(faturaHoje)}.
+            </span>
+          </li>
+        ) : null}
+        <li className="ganho-linha">
+          <span className="min-w-0 flex-1">Parcelas do cartão</span>
+          <span className="money shrink-0 text-sm">{formatarMoeda(cartaoParcelas)}</span>
+        </li>
+        <li className="ganho-linha">
+          <span className="min-w-0 flex-1">Fixos do cartão</span>
+          <span className="money shrink-0 text-sm">{formatarMoeda(cartaoFixo)}</span>
+        </li>
+      </ul>,
+    );
 
   const mesDaLista = categoria === "cartao" ? faturaHoje : competencia;
-  const lancamentosModal = lancamentos.filter(
-    (item) => item.categoria === categoria && item.competencia === mesDaLista,
-  );
-  const totalModal =
-    !categoria || mesDaLista === competencia
-      ? categoria
-        ? mes[CAMPO_CATEGORIA[categoria]]
-        : 0
-      : lancamentosModal.reduce((acc, item) => acc + item.valor, 0);
+  const resumoModalTema =
+    categoria === "feira" ? resumoFeira : categoria === "gasolina" ? resumoGasolina : null;
+  const lancamentosModal = resumoModalTema
+    ? resumoModalTema.itens
+    : categoria
+      ? lancamentosDaCategoria(categoria)
+      : [];
+  const totalModal = resumoModalTema
+    ? resumoModalTema.total
+    : categoria === "cartao"
+      ? valorCartaoAvulso
+      : 0;
+  const resumoHojeModal = resumoLancamentosHoje(lancamentosModal);
 
   const novaDespesa = fechado ? null : (
     <button
@@ -379,6 +593,7 @@ export function PainelDespesas({
               type="button"
               className="btn-primary novo-topo"
               onClick={() => {
+                irParaAba("extra");
                 setErro("");
                 setAberto(true);
               }}
@@ -414,117 +629,129 @@ export function PainelDespesas({
         </p>
       ) : null}
 
-      <div className="caixas-grade">
-        {painel(
-          "Contas fixas",
-          "Voltam todo mês, com o valor copiado do mês anterior.",
-          soma(fixas.map(({ item }) => item)),
-          null,
-          listaEditavel(fixas, "Nenhuma conta fixa neste mês."),
-        )}
-        {painel(
-          "Só este mês",
-          "Despesas avulsas: não se repetem nos meses seguintes.",
-          soma(avulsas.map(({ item }) => item)),
-          novaDespesa,
-          listaEditavel(avulsas, "Nenhuma despesa avulsa neste mês."),
-        )}
-        {painel(
-          "Contas anuais",
-          "IPVA, IPTU, domínio… a parcela do mês vem do cadastro das contas anuais.",
-          soma(anuais.map(({ item }) => item)),
-          fechado ? null : (
-            <button type="button" className="btn text-sm self-start" onClick={() => setAberto(true)}>
-              Nova conta anual
-            </button>
-          ),
-          listaEditavel(anuais, "Nenhuma parcela anual neste mês.", false),
-        )}
-        {painel(
-          "Feira, gasolina e cartão",
-          "A cada compra, use “+ Adicionar” para somar ao total do mês. A sugestão vem dos vales.",
-          mes.feiraReal + mes.gasolinaReal + mes.cartaoReal + cartaoParcelas + cartaoFixo,
-          <button type="button" className="btn text-sm self-start" onClick={() => setCartaoAberto(true)}>
-            Compras e fixos do cartão
-          </button>,
-          <ul>
-            {linhaVariavel("Feira", "feiraReal", `Sugestão ${formatarMoeda(sugestoes.feira)}`, "feira")}
-            {linhaVariavel("Gasolina", "gasolinaReal", `Sugestão ${formatarMoeda(sugestoes.gasolina)}`, "gasolina")}
-            {linhaVariavel(
-              "Cartão avulso",
-              "cartaoReal",
-              faturaHoje === competencia
-                ? `Avulsos desta fatura (fecha dia ${fechamento})`
-                : `Compras após o dia ${fechamento} vão para ${formatarNomeMes(faturaHoje)}`,
-              "cartao",
-            )}
-            {faturaHoje !== competencia ? (
-              <li className="ganho-linha">
-                <span className="min-w-0 flex-1 text-sm text-mute">
-                  Feira/gasolina no crédito e outros avulsos de agora:{" "}
-                  <Link className="underline" href={`/cartao?mes=${faturaHoje}`}>
-                    ver fatura de {formatarNomeMes(faturaHoje)}
-                  </Link>
-                </span>
-              </li>
-            ) : null}
-            <li className="ganho-linha">
-              <span className="min-w-0 flex-1">Parcelas do cartão</span>
-              <span className="money shrink-0 text-sm">{formatarMoeda(cartaoParcelas)}</span>
-            </li>
-            <li className="ganho-linha">
-              <span className="min-w-0 flex-1">Fixos do cartão</span>
-              <span className="money shrink-0 text-sm">{formatarMoeda(cartaoFixo)}</span>
-            </li>
-          </ul>,
-        )}
-        {painel(
-          "Aportes (investimentos)",
-          "Dinheiro que você guarda. Guardou menos que o sugerido? Digite o valor real.",
-          totalAportes,
-          null,
-          <ul>
-            {aportes.map((item) => (
-              <li key={item.campo} className="ganho-linha">
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate">{item.rotulo}</span>
-                  <span className="block text-xs text-mute">
-                    {item.somenteLeitura
-                      ? "Parcela do mês (conta anual)"
-                      : `Sugerido ${formatarMoeda(item.sugestao)}`}
-                    {!item.somenteLeitura && item.campo in mes.depositos && mes.depositos[item.campo as keyof typeof mes.depositos]
-                      ? " · depósito marcado"
-                      : ""}
-                  </span>
-                </span>
-                {item.somenteLeitura ? (
-                  <span className="money shrink-0 text-sm">{formatarMoeda(item.valor)}</span>
-                ) : (
-                  <div className="ganho-valor">
-                    <CampoMoeda
-                      id={`aporte-${item.campo}`}
-                      label={`Aporte em ${item.rotulo}`}
-                      rotuloVisivel={false}
-                      compact
-                      value={item.valor}
-                      disabled={fechado || pendente}
-                      onChange={() => undefined}
-                      onCommit={(novo) =>
-                        alterarAporte(
-                          item.campo as "poupanca" | "reserva" | "fundo" | "alttab" | "meta",
-                          item.valor,
-                          novo,
-                        )
-                      }
-                    />
-                  </div>
+      <AbasSecao
+        rotulo="Seções dos gastos"
+        ativa={aba}
+        onChange={irParaAba}
+        abas={[
+          {
+            id: "fixas",
+            rotulo: "Fixas",
+            painel: (
+              <>
+                {painel(
+                  "Contas fixas",
+                  "Voltam todo mês, com o valor copiado do mês anterior.",
+                  soma(fixas.map(({ item }) => item)),
+                  null,
+                  listaEditavel(fixas, "Nenhuma conta fixa neste mês."),
                 )}
-              </li>
-            ))}
-          </ul>,
-          true,
-        )}
-      </div>
+                {painel(
+                  "Contas anuais",
+                  "IPVA, IPTU, domínio… a parcela do mês vem do cadastro das contas anuais.",
+                  soma(anuais.map(({ item }) => item)),
+                  fechado ? null : (
+                    <button type="button" className="btn text-sm self-start" onClick={() => setAberto(true)}>
+                      Nova conta anual
+                    </button>
+                  ),
+                  listaEditavel(anuais, "Nenhuma parcela anual neste mês.", false),
+                )}
+              </>
+            ),
+          },
+          {
+            id: "extra",
+            rotulo: "Extra",
+            painel: painel(
+              "Só este mês",
+              "Despesas avulsas: não se repetem nos meses seguintes.",
+              soma(avulsas.map(({ item }) => item)),
+              novaDespesa,
+              listaEditavel(avulsas, "Nenhuma despesa avulsa neste mês."),
+            ),
+          },
+          {
+            id: "dia",
+            rotulo: "Dia a dia",
+            painel: (
+              <AbasSecao
+                rotulo="Feira, gasolina e cartão"
+                ativa={temaDia}
+                onChange={irParaTemaDia}
+                abas={[
+                  {
+                    id: "feira",
+                    rotulo: "Feira",
+                    painel: painelTemaVariavel("feira", resumoFeira, sugestoes.feira, "VA"),
+                  },
+                  {
+                    id: "gasolina",
+                    rotulo: "Gasolina",
+                    painel: painelTemaVariavel("gasolina", resumoGasolina, sugestoes.gasolina, "VT"),
+                  },
+                  {
+                    id: "cartao",
+                    rotulo: "Cartão",
+                    painel: painelCartaoDia(),
+                  },
+                ]}
+              />
+            ),
+          },
+          {
+            id: "aportes",
+            rotulo: "Aportes",
+            painel: painel(
+              "Aportes (investimentos)",
+              "Dinheiro que você guarda. Guardou menos que o sugerido? Digite o valor real.",
+              totalAportes,
+              null,
+              <ul>
+                {aportes.map((item) => (
+                  <li key={item.campo} className="ganho-linha">
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{item.rotulo}</span>
+                      <span className="block text-xs text-mute">
+                        {item.somenteLeitura
+                          ? "Parcela do mês (conta anual)"
+                          : `Sugerido ${formatarMoeda(item.sugestao)}`}
+                        {!item.somenteLeitura &&
+                        item.campo in mes.depositos &&
+                        mes.depositos[item.campo as keyof typeof mes.depositos]
+                          ? " · depósito marcado"
+                          : ""}
+                      </span>
+                    </span>
+                    {item.somenteLeitura ? (
+                      <span className="money shrink-0 text-sm">{formatarMoeda(item.valor)}</span>
+                    ) : (
+                      <div className="ganho-valor">
+                        <CampoMoeda
+                          id={`aporte-${item.campo}`}
+                          label={`Aporte em ${item.rotulo}`}
+                          rotuloVisivel={false}
+                          compact
+                          value={item.valor}
+                          disabled={fechado || pendente}
+                          onChange={() => undefined}
+                          onCommit={(novo) =>
+                            alterarAporte(
+                              item.campo as "poupanca" | "reserva" | "fundo" | "alttab" | "meta",
+                              item.valor,
+                              novo,
+                            )
+                          }
+                        />
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>,
+            ),
+          },
+        ]}
+      />
 
       <p className="sr-only" role="status" aria-live="polite">
         {status}
@@ -537,25 +764,18 @@ export function PainelDespesas({
             {
               rotulo: "Nova despesa",
               onClick: () => {
+                irParaAba("extra");
                 setErro("");
                 setAberto(true);
               },
             },
             {
               rotulo: "Feira",
-              onClick: () => {
-                setErroGasto("");
-                setNoCartao(false);
-                setCategoria("feira");
-              },
+              onClick: () => abrirTemaNaAba("feira"),
             },
             {
               rotulo: "Gasolina",
-              onClick: () => {
-                setErroGasto("");
-                setNoCartao(false);
-                setCategoria("gasolina");
-              },
+              onClick: () => abrirTemaNaAba("gasolina"),
             },
           ]}
         />
@@ -570,8 +790,18 @@ export function PainelDespesas({
         {categoria ? (
           <div className="grid gap-4">
             <p className="caixa-nota">
-              {categoria === "cartao" ? `Fatura de ${formatarNomeMes(faturaHoje)}` : "Total do mês"}:{" "}
-              <strong className="money">{formatarMoeda(totalModal)}</strong>
+              {categoria === "cartao"
+                ? `Fatura de ${formatarNomeMes(faturaHoje)}`
+                : resumoModalTema
+                  ? `Total do mês (dinheiro + vale + cartão)`
+                  : "Total do mês"}
+              : <strong className="money">{formatarMoeda(totalModal)}</strong>
+              {resumoModalTema ? (
+                <span className="block text-xs text-mute mt-1">{textoPorMeio(resumoModalTema)}</span>
+              ) : null}
+              {resumoHojeModal.vezes > 0
+                ? ` · hoje: ${resumoHojeModal.vezes} ${resumoHojeModal.vezes === 1 ? "vez" : "vezes"} (${formatarMoeda(resumoHojeModal.total)})`
+                : ""}
             </p>
             {categoria === "cartao" ? (
               <div className="grid gap-2">
@@ -608,30 +838,42 @@ export function PainelDespesas({
               {categoria !== "cartao" ? (
                 <fieldset className="tipo-conta" aria-label="Como pagou">
                   <legend className="sr-only">Como pagou</legend>
-                  <label className={`tipo-conta-opcao ${!noCartao ? "is-ativo" : ""}`}>
-                    <input
-                      type="radio"
-                      name="pagamento-variavel"
-                      checked={!noCartao}
-                      onChange={() => setNoCartao(false)}
-                    />
-                    <span className="tipo-conta-rotulo">Dinheiro</span>
-                    <span className="tipo-conta-detalhe">
-                      Soma no total de {ROTULO_CATEGORIA[categoria].toLowerCase()} deste mês.
-                    </span>
-                  </label>
-                  <label className={`tipo-conta-opcao ${noCartao ? "is-ativo" : ""}`}>
-                    <input
-                      type="radio"
-                      name="pagamento-variavel"
-                      checked={noCartao}
-                      onChange={() => setNoCartao(true)}
-                    />
-                    <span className="tipo-conta-rotulo">Cartão de crédito</span>
-                    <span className="tipo-conta-detalhe">
-                      Entra na fatura de {formatarNomeMes(faturaHoje)}.
-                    </span>
-                  </label>
+                  {(
+                    [
+                      {
+                        id: "dinheiro" as const,
+                        rotulo: "Dinheiro",
+                        detalhe: `Soma no caixa de ${ROTULO_CATEGORIA[categoria].toLowerCase()}.`,
+                      },
+                      {
+                        id: "vale" as const,
+                        rotulo: categoria === "feira" ? "Vale-alimentação" : "Vale-transporte",
+                        detalhe:
+                          categoria === "feira"
+                            ? "Usa o VA — entra no total de mercado do mês."
+                            : "Usa o VT — entra no total de gasolina do mês.",
+                      },
+                      {
+                        id: "cartao" as const,
+                        rotulo: "Cartão de crédito",
+                        detalhe: `Entra na fatura de ${formatarNomeMes(faturaHoje)}.`,
+                      },
+                    ] as const
+                  ).map((opcao) => (
+                    <label
+                      key={opcao.id}
+                      className={`tipo-conta-opcao ${meioPagamento === opcao.id ? "is-ativo" : ""}`}
+                    >
+                      <input
+                        type="radio"
+                        name="pagamento-variavel"
+                        checked={meioPagamento === opcao.id}
+                        onChange={() => setMeioPagamento(opcao.id)}
+                      />
+                      <span className="tipo-conta-rotulo">{opcao.rotulo}</span>
+                      <span className="tipo-conta-detalhe">{opcao.detalhe}</span>
+                    </label>
+                  ))}
                 </fieldset>
               ) : null}
               {erroGasto ? (
@@ -640,27 +882,47 @@ export function PainelDespesas({
                 </p>
               ) : null}
               <button type="submit" className="btn-primary" disabled={pendente}>
-                {pendente ? "Salvando…" : noCartao && categoria !== "cartao" ? "Somar na fatura" : "Somar ao total"}
+                {pendente
+                  ? "Salvando…"
+                  : meioPagamento === "cartao" && categoria !== "cartao"
+                    ? "Somar na fatura"
+                    : "Somar ao total"}
               </button>
             </form>
             <div>
-              <p className="kpi-rotulo">Lançamentos do mês</p>
+              <p className="kpi-rotulo">
+                {categoria === "cartao"
+                  ? `Lançamentos de ${formatarNomeMes(mesDaLista)}`
+                  : "Lançamentos do mês (todos os meios)"}
+              </p>
               {lancamentosModal.length === 0 ? (
                 <p className="mt-1 text-sm text-mute">Nenhum lançamento ainda.</p>
               ) : (
                 <ul>
-                  {lancamentosModal.map((item) => (
+                  {lancamentosModal.map((item) => {
+                    const meio = meioPagamentoLancamento(item);
+                    const detalhe = detalheDescricaoLancamento(item);
+                    return (
                       <li key={item.id} className="ganho-linha">
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate">{item.descricao || "Compra"}</span>
+                          <span className="block truncate">
+                            {ROTULOS_MEIO_PAGAMENTO[meio]}
+                            {detalhe ? ` · ${detalhe}` : ""}
+                          </span>
                           <span className="block text-xs text-mute">{formatarDia(item.data)}</span>
                         </span>
                         <span className="money shrink-0 text-sm">{formatarMoeda(item.valor)}</span>
-                        <button type="button" className="btn text-xs" disabled={pendente} onClick={() => desfazerGasto(item.id)}>
+                        <button
+                          type="button"
+                          className="btn text-xs"
+                          disabled={pendente}
+                          onClick={() => desfazerGasto(item.id)}
+                        >
                           Remover
                         </button>
                       </li>
-                    ))}
+                    );
+                  })}
                 </ul>
               )}
             </div>

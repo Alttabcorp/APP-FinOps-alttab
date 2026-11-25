@@ -9,13 +9,15 @@ import {
   obterDiaPagamentoCartao,
 } from "@/lib/application/lancamento-service";
 import { isCompetencia } from "@/lib/domain/financeiro/competencia";
+import { isAbaCartao, type AbaCartao } from "@/lib/ui/abas";
 
 export const dynamic = "force-dynamic";
 
-type Props = { searchParams: Promise<{ mes?: string }> };
+type Props = { searchParams: Promise<{ mes?: string; aba?: string }> };
 
 export default async function PaginaCartao({ searchParams }: Props) {
-  const { mes } = await searchParams;
+  const { mes, aba } = await searchParams;
+  const abaInicial: AbaCartao = isAbaCartao(aba) ? aba : "avulsos";
   // Sem ?mes=, abre a fatura que está recebendo as compras de agora (após o fechamento).
   const faturaHoje = await competenciaDaFaturaHoje();
   const competencia = mes && isCompetencia(mes) ? mes : faturaHoje;
@@ -51,6 +53,7 @@ export default async function PaginaCartao({ searchParams }: Props) {
         faturaHoje={faturaHoje}
         diaFechamento={diaFechamento}
         diaPagamento={diaPagamento}
+        abaInicial={abaInicial}
         avulsosFaturaAberta={avulsosFaturaAberta.map((item) => ({
           id: item.id,
           descricao: item.descricao,

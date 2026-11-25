@@ -2,6 +2,15 @@ import Link from "next/link";
 import { BotaoEntrada } from "@/components/botao-entrada";
 import { listarContas } from "@/lib/application/conta-service";
 import {
+  competenciasComLancamento,
+  detalheDescricaoLancamento,
+  ehLancamentoDoTema,
+  listarLancamentosHistorico,
+  meioPagamentoLancamento,
+  ROTULOS_CATEGORIA_VARIAVEL,
+  ROTULOS_MEIO_PAGAMENTO,
+} from "@/lib/application/lancamento-service";
+import {
   competenciasComTransacao,
   listarTransacoes,
   ROTULOS_TRANSACAO,
@@ -25,13 +34,23 @@ const formatarData = (iso: string) =>
 
 export default async function PaginaTransacoes({ searchParams }: Props) {
   const { conta, mes } = await searchParams;
-  const [contas, meses] = await Promise.all([listarContas(), competenciasComTransacao()]);
+  const [contas, mesesTx, mesesLanc] = await Promise.all([
+    listarContas(),
+    competenciasComTransacao(),
+    competenciasComLancamento(),
+  ]);
   const contaId = contas.some((item) => item.id === conta) ? conta : undefined;
   const competencia = mes && isCompetencia(mes) ? mes : undefined;
-  const transacoes = await listarTransacoes({ contaId, competencia });
+  const meses = [...new Set([...mesesTx, ...mesesLanc])].sort((a, b) => (a < b ? 1 : -1));
+  const [transacoes, lancamentos] = await Promise.all([
+    listarTransacoes({ contaId, competencia }),
+    // Gastos adicionados não filtram por caixinha.
+    contaId ? Promise.resolve([]) : listarLancamentosHistorico(competencia),
+  ]);
 
   const entrou = transacoes.filter((t) => t.valor > 0).reduce((acc, t) => acc + t.valor, 0);
   const saiu = transacoes.filter((t) => t.valor < 0).reduce((acc, t) => acc + t.valor, 0);
+  const totalGastos = lancamentos.reduce((acc, item) => acc + item.valor, 0);
 
   return (
     <main id="conteudo">
@@ -40,7 +59,7 @@ export default async function PaginaTransacoes({ searchParams }: Props) {
           <div>
             <h1 className="titulo">Transações</h1>
             <p className="mt-2 max-w-[60ch] text-sm text-mute">
-              Tudo que entrou e saiu das suas caixinhas: depósitos, retiradas, reposições e ajustes de saldo.
+              Movimentações das caixinhas e histórico do que você adicionou em feira, gasolina e cartão.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -93,26 +112,27 @@ export default async function PaginaTransacoes({ searchParams }: Props) {
 
         <section className="resumo-faixa mt-5" aria-label="Resumo das transações">
           <div className="resumo-celula">
-            <p className="kpi-rotulo">Entrou</p>
+            <p className="kpi-rotulo">Entrou (caixinhas)</p>
             <p className="money resumo-valor-sm text-inflow">{formatarMoeda(entrou)}</p>
           </div>
           <div className="resumo-celula">
-            <p className="kpi-rotulo">Saiu</p>
+            <p className="kpi-rotulo">Saiu (caixinhas)</p>
             <p className="money resumo-valor-sm text-outflow">{formatarMoeda(Math.abs(saiu))}</p>
           </div>
           <div className="resumo-celula">
-            <p className="kpi-rotulo">Saldo do período</p>
-            <p className={`money resumo-valor-sm ${entrou + saiu >= 0 ? "text-inflow" : "text-outflow"}`}>
-              {formatarMoeda(entrou + saiu)}
-            </p>
+            <p className="kpi-rotulo">Gastos adicionados</p>
+            <p className="money resumo-valor-sm text-outflow">{formatarMoeda(totalGastos)}</p>
+            <p className="text-xs text-mute">Feira, gasolina e cartão</p>
           </div>
         </section>
 
         <section className="panel mt-6 p-5" aria-label="Lista de transações">
+          <h2 className="text-lg font-semibold">Caixinhas</h2>
+          <p className="mt-1 text-sm text-mute">Depósitos, retiradas, reposições e ajustes de saldo.</p>
           {transacoes.length === 0 ? (
-            <p className="text-sm text-mute">Nenhuma transação encontrada.</p>
+            <p className="mt-4 text-sm text-mute">Nenhuma transação encontrada.</p>
           ) : (
-            <ul>
+            <ul className="mt-4">
               {transacoes.map((t) => (
                 <li key={t.id} className="transacao-linha">
                   <div className="min-w-0">
@@ -129,6 +149,46 @@ export default async function PaginaTransacoes({ searchParams }: Props) {
             </ul>
           )}
         </section>
+
+        {!contaId ? (
+          <section className="panel mt-6 p-5" aria-label="Gastos adicionados">
+            <h2 className="text-lg font-semibold">Gastos adicionados</h2>
+            <p className="mt-1 text-sm text-mute">
+              Feira, gasolina e cartão avulso — com data para saber quantas vezes você foi em cada dia.
+            </p>
+            {lancamentos.length === 0 ? (
+              <p className="mt-4 text-sm text-mute">Nenhum gasto adicionado neste filtro.</p>
+            ) : (
+              <ul className="mt-4">
+                {lancamentos.map((item) => {
+                  const meio = meioPagamentoLancamento(item);
+                  const detalhe = detalheDescricaoLancamento(item);
+                  const tema = ehLancamentoDoTema(item, "feira")
+                    ? "Feira"
+                    : ehLancamentoDoTema(item, "gasolina")
+                      ? "Gasolina"
+                      : ROTULOS_CATEGORIA_VARIAVEL[item.categoria];
+                  return (
+                    <li key={item.id} className="transacao-linha">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">
+                          {detalhe || tema}
+                        </p>
+                        <p className="text-xs text-mute">
+                          {tema} · {ROTULOS_MEIO_PAGAMENTO[meio]} · {formatarCompetencia(item.competencia)} ·{" "}
+                          {formatarData(item.data)}
+                        </p>
+                      </div>
+                      <p className="money shrink-0 font-medium text-outflow">
+                        − {formatarMoeda(item.valor)}
+                      </p>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        ) : null}
       </article>
     </main>
   );

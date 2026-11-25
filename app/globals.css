@@ -2735,6 +2735,54 @@ button.folha-aba[aria-current="page"] { border-bottom-color: var(--ink); }
   box-shadow: none;
 }
 
+/* Abas internas (Gastos / Cartão): uma seção por vez */
+.abas-secao {
+  margin-top: 1.25rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.abas-secao-lista {
+  display: flex;
+  gap: 0.35rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 0.15rem;
+}
+
+.abas-secao-lista::-webkit-scrollbar {
+  display: none;
+}
+
+.aba {
+  flex: none;
+  border: 1px solid var(--line);
+  background: var(--sheet);
+  color: var(--mute);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.9rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.aba.is-ativa {
+  color: var(--ink);
+  border-color: var(--brand);
+  box-shadow: 0 0 0 1px var(--brand);
+}
+
+.abas-secao-painel {
+  display: grid;
+  gap: 1rem;
+}
+
+.abas-secao-painel > .abas-secao {
+  margin-top: 0;
+}
+
 /* Tela de objetivos */
 .caixas-grade {
   display: grid;

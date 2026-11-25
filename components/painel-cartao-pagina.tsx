@@ -1,9 +1,11 @@
 "use client";
 
+import { AbasSecao } from "@/components/abas-secao";
 import { BotaoFlutuante } from "@/components/botao-flutuante";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { excluirCompraCartaoAction } from "@/app/actions/cartao";
 import {
   adicionarLancamentoAction,
   removerLancamentoAction,
@@ -19,9 +21,10 @@ import { PainelCartao } from "@/components/painel-cartao";
 import type { CompraCartaoDTO, RecorrenteCartaoDTO } from "@/lib/application/cartao-mapper";
 import type { LancamentoDTO } from "@/lib/application/lancamento-service";
 import type { MesDTO } from "@/lib/application/mes-mapper";
-import { parcelasDoMes, somarRecorrentes } from "@/lib/domain/financeiro/cartao";
+import { avulsosCompraDoMes, parcelasDoMes, somarRecorrentes } from "@/lib/domain/financeiro/cartao";
 import { avancarCompetencia, formatarCompetencia, formatarNomeMes } from "@/lib/domain/financeiro/competencia";
 import { formatarMoeda } from "@/lib/formatacao";
+import { isAbaCartao, type AbaCartao } from "@/lib/ui/abas";
 
 type Props = {
   competencia: string;
@@ -35,6 +38,7 @@ type Props = {
   diaPagamento: number;
   /** Compras já lançadas na fatura que está aberta agora (quando você está vendo outro mês). */
   avulsosFaturaAberta?: { id: string; descricao: string; valor: number }[];
+  abaInicial?: AbaCartao;
 };
 
 type Cadastro = "compra" | "fixo" | "tudo" | null;
@@ -59,9 +63,11 @@ export function PainelCartaoPagina({
   diaFechamento,
   diaPagamento,
   avulsosFaturaAberta = [],
+  abaInicial = "avulsos",
 }: Props) {
   const router = useRouter();
   const [pendente, startTransition] = useTransition();
+  const [aba, setAba] = useState<AbaCartao>(abaInicial);
   const [cadastro, setCadastro] = useState<Cadastro>(null);
   const [avulsoAberto, setAvulsoAberto] = useState(false);
   const [valor, setValor] = useState(0);
@@ -71,13 +77,27 @@ export function PainelCartaoPagina({
   const [erro, setErro] = useState("");
   const [status, setStatus] = useState("");
 
+  useEffect(() => setAba(abaInicial), [abaInicial]);
+
+  const irParaAba = (id: string) => {
+    const proxima: AbaCartao = isAbaCartao(id) ? id : "avulsos";
+    setAba(proxima);
+    const params = new URLSearchParams();
+    params.set("mes", competencia);
+    if (proxima !== "avulsos") params.set("aba", proxima);
+    router.replace(`/cartao?${params.toString()}`, { scroll: false });
+  };
+
   const fechado = mes.fechado;
   const faturaAbertaEmOutroMes = faturaHoje !== competencia;
   const totalFaturaAberta = avulsosFaturaAberta.reduce((acc, item) => acc + item.valor, 0);
   const parcelas = parcelasDoMes(compras, competencia);
+  const avulsosCompra = avulsosCompraDoMes(compras, competencia);
   const totalParcelas = parcelas.reduce((acc, parcela) => acc + parcela.valor, 0);
+  const totalAvulsosCompra = avulsosCompra.reduce((acc, item) => acc + item.valor, 0);
+  const totalAvulsos = mes.cartaoReal + totalAvulsosCompra;
   const totalFixos = somarRecorrentes(recorrentes);
-  const fatura = totalParcelas + totalFixos + mes.cartaoReal;
+  const fatura = totalParcelas + totalFixos + totalAvulsos;
   const estoura = teto > 0 ? fatura > teto + 0.005 : fatura > 0.005;
   const percentual = teto > 0 ? Math.min(100, (fatura / teto) * 100) : fatura > 0 ? 100 : 0;
   const pago = Boolean(mes.depositos?.cartao);
@@ -98,6 +118,14 @@ export function PainelCartaoPagina({
   const remover = (id: string) => {
     startTransition(async () => {
       const resposta = await removerLancamentoAction(id);
+      if (resposta.ok) router.refresh();
+      else setErro(resposta.erro);
+    });
+  };
+
+  const removerCompra1x = (id: string) => {
+    startTransition(async () => {
+      const resposta = await excluirCompraCartaoAction(id);
       if (resposta.ok) router.refresh();
       else setErro(resposta.erro);
     });
@@ -178,7 +206,15 @@ export function PainelCartaoPagina({
             ›
           </Link>
           {fechado ? null : (
-            <button type="button" className="btn-primary novo-topo" onClick={() => setCadastro("compra")}>
+            <button
+              type="button"
+              className="btn-primary novo-topo"
+              onClick={() => {
+                irParaAba("avulsos");
+                setErro("");
+                setAvulsoAberto(true);
+              }}
+            >
               Nova compra
             </button>
           )}
@@ -234,123 +270,191 @@ export function PainelCartaoPagina({
         </p>
       ) : null}
 
-      <div className="caixas-grade">
-        {caixa(
-          "Gastos fixos",
-          "Academia, assinaturas… entram toda fatura.",
-          totalFixos,
-          fechado ? null : (
-            <button type="button" className="btn text-sm self-start" onClick={() => setCadastro("fixo")}>
-              Novo gasto fixo
-            </button>
-          ),
-          recorrentes.length === 0 ? (
-            <p className="text-sm text-mute">Nenhum gasto fixo no cartão.</p>
-          ) : (
-            <ul>{recorrentes.map((fixo) => linhaSimples(fixo.id, fixo.nome, null, fixo.valor))}</ul>
-          ),
-        )}
-        {caixa(
-          "Parcelas do mês",
-          "Compras parceladas que caem nesta fatura.",
-          totalParcelas,
-          fechado ? null : (
-            <button type="button" className="btn text-sm self-start" onClick={() => setCadastro("tudo")}>
-              Editar compras e fixos
-            </button>
-          ),
-          parcelas.length === 0 ? (
-            <p className="text-sm text-mute">Nenhuma parcela neste mês.</p>
-          ) : (
-            <ul>
-              {parcelas.map((parcela) =>
-                linhaSimples(`${parcela.nome}-${parcela.atual}`, parcela.nome, `Parcela ${parcela.atual}/${parcela.total}`, parcela.valor),
-              )}
-            </ul>
-          ),
-        )}
-        {caixa(
-          "Avulso na fatura",
-          "Compras do dia a dia no cartão. Some cada uma ao total.",
-          mes.cartaoReal,
-          fechado ? null : (
-            <button
-              type="button"
-              className="btn text-sm self-start"
-              onClick={() => {
-                setErro("");
-                setAvulsoAberto(true);
-              }}
-            >
-              + Adicionar compra
-            </button>
-          ),
-          lancamentos.length === 0 ? (
-            <p className="text-sm text-mute">Nenhum lançamento avulso nesta fatura.</p>
-          ) : (
-            <ul>
-              {lancamentos.map((item) => (
-                <li key={item.id} className="ganho-linha">
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate">{item.descricao || "Compra"}</span>
-                    <span className="block text-xs text-mute">{formatarDia(item.data)}</span>
-                  </span>
-                  <span className="money shrink-0 text-sm">{formatarMoeda(item.valor)}</span>
-                  {fechado ? null : (
-                    <button type="button" className="btn text-xs" disabled={pendente} onClick={() => remover(item.id)}>
-                      Remover
-                    </button>
+      <AbasSecao
+        rotulo="Seções do cartão"
+        ativa={aba}
+        onChange={irParaAba}
+        abas={[
+          {
+            id: "avulsos",
+            rotulo: "Avulsos",
+            painel: caixa(
+              "Avulso na fatura",
+              "Compra em 1x ou do dia a dia. Some cada uma ao total.",
+              totalAvulsos,
+              fechado ? null : (
+                <button
+                  type="button"
+                  className="btn text-sm self-start"
+                  onClick={() => {
+                    setErro("");
+                    setAvulsoAberto(true);
+                  }}
+                >
+                  + Adicionar compra
+                </button>
+              ),
+              lancamentos.length === 0 && avulsosCompra.length === 0 ? (
+                <p className="text-sm text-mute">Nenhum lançamento avulso nesta fatura.</p>
+              ) : (
+                <ul>
+                  {avulsosCompra.map((item) => (
+                    <li key={item.id ?? `compra-1x-${item.nome}`} className="ganho-linha">
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate">{item.nome}</span>
+                        <span className="block text-xs text-mute">Compra em 1x</span>
+                      </span>
+                      <span className="money shrink-0 text-sm">{formatarMoeda(item.valor)}</span>
+                      {fechado || !item.id ? null : (
+                        <button
+                          type="button"
+                          className="btn text-xs"
+                          disabled={pendente}
+                          onClick={() => removerCompra1x(item.id as string)}
+                        >
+                          Remover
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                  {lancamentos.map((item) => (
+                    <li key={item.id} className="ganho-linha">
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate">{item.descricao || "Compra"}</span>
+                        <span className="block text-xs text-mute">{formatarDia(item.data)}</span>
+                      </span>
+                      <span className="money shrink-0 text-sm">{formatarMoeda(item.valor)}</span>
+                      {fechado ? null : (
+                        <button type="button" className="btn text-xs" disabled={pendente} onClick={() => remover(item.id)}>
+                          Remover
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ),
+            ),
+          },
+          {
+            id: "parcelas",
+            rotulo: "Parcelas",
+            painel: caixa(
+              "Parcelas do mês",
+              "Compras em 2x ou mais que caem nesta fatura.",
+              totalParcelas,
+              fechado ? null : (
+                <button type="button" className="btn text-sm self-start" onClick={() => setCadastro("tudo")}>
+                  Editar compras e fixos
+                </button>
+              ),
+              parcelas.length === 0 ? (
+                <p className="text-sm text-mute">Nenhuma parcela neste mês.</p>
+              ) : (
+                <ul>
+                  {parcelas.map((parcela) =>
+                    linhaSimples(
+                      `${parcela.nome}-${parcela.atual}`,
+                      parcela.nome,
+                      `Parcela ${parcela.atual}/${parcela.total}`,
+                      parcela.valor,
+                    ),
                   )}
-                </li>
-              ))}
-            </ul>
-          ),
-        )}
-        <section className="caixa" aria-label="Pagamento da fatura">
-          <header className="caixa-topo">
-            <div className="min-w-0 flex-1">
-              <h2 className="caixa-titulo">Pagamento</h2>
-              <p className="caixa-funcao">
-                Ex.: fecha 7/nov → fatura de dezembro → paga dia {diaPagamento} de dezembro.
-              </p>
-            </div>
-          </header>
-          <div className="caixa-corpo">
-            <label className="cartao-pago">
-              <input
-                className="checkbox-pago"
-                type="checkbox"
-                checked={pago}
-                disabled={fechado || pendente}
-                onChange={(evento) => marcarPago(evento.target.checked)}
-              />
-              <span>Fatura paga (venc. dia {diaPagamento})</span>
-            </label>
-            <CampoPassos
-              id="cartao-fechamento-pagina"
-              label="A fatura fecha no dia"
-              value={fechamento}
-              min={1}
-              max={28}
-              onChange={mudarFechamento}
-            />
-            <CampoPassos
-              id="cartao-pagamento-pagina"
-              label="A fatura vence / é paga no dia"
-              value={pagamento}
-              min={1}
-              max={28}
-              onChange={mudarPagamento}
-            />
-          </div>
-        </section>
-      </div>
+                </ul>
+              ),
+            ),
+          },
+          {
+            id: "fixos",
+            rotulo: "Fixos",
+            painel: caixa(
+              "Gastos fixos",
+              "Academia, assinaturas… entram toda fatura.",
+              totalFixos,
+              fechado ? null : (
+                <button type="button" className="btn text-sm self-start" onClick={() => setCadastro("fixo")}>
+                  Novo gasto fixo
+                </button>
+              ),
+              recorrentes.length === 0 ? (
+                <p className="text-sm text-mute">Nenhum gasto fixo no cartão.</p>
+              ) : (
+                <ul>{recorrentes.map((fixo) => linhaSimples(fixo.id, fixo.nome, null, fixo.valor))}</ul>
+              ),
+            ),
+          },
+          {
+            id: "pagamento",
+            rotulo: "Pagamento",
+            painel: (
+              <section className="caixa" aria-label="Pagamento da fatura">
+                <header className="caixa-topo">
+                  <div className="min-w-0 flex-1">
+                    <h2 className="caixa-titulo">Pagamento</h2>
+                    <p className="caixa-funcao">
+                      Ex.: fecha 7/nov → fatura de dezembro → paga dia {diaPagamento} de dezembro.
+                    </p>
+                  </div>
+                </header>
+                <div className="caixa-corpo">
+                  <label className="cartao-pago">
+                    <input
+                      className="checkbox-pago"
+                      type="checkbox"
+                      checked={pago}
+                      disabled={fechado || pendente}
+                      onChange={(evento) => marcarPago(evento.target.checked)}
+                    />
+                    <span>Fatura paga (venc. dia {diaPagamento})</span>
+                  </label>
+                  <CampoPassos
+                    id="cartao-fechamento-pagina"
+                    label="A fatura fecha no dia"
+                    value={fechamento}
+                    min={1}
+                    max={28}
+                    onChange={mudarFechamento}
+                  />
+                  <CampoPassos
+                    id="cartao-pagamento-pagina"
+                    label="A fatura vence / é paga no dia"
+                    value={pagamento}
+                    min={1}
+                    max={28}
+                    onChange={mudarPagamento}
+                  />
+                </div>
+              </section>
+            ),
+          },
+        ]}
+      />
 
       <p className="sr-only" role="status" aria-live="polite">
         {status}
       </p>
 
-      {fechado ? null : <BotaoFlutuante rotulo="Nova compra" onClick={() => setCadastro("compra")} />}
+      {fechado ? null : (
+        <BotaoFlutuante
+          rotulo="Nova compra"
+          acoes={[
+            {
+              rotulo: "Avulsa (1x)",
+              onClick: () => {
+                irParaAba("avulsos");
+                setErro("");
+                setAvulsoAberto(true);
+              },
+            },
+            {
+              rotulo: "Parcelada (2x+)",
+              onClick: () => {
+                irParaAba("parcelas");
+                setCadastro("compra");
+              },
+            },
+          ]}
+        />
+      )}
 
       <Modal
         aberto={avulsoAberto}

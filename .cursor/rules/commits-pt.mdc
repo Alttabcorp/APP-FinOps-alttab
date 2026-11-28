@@ -1,0 +1,23 @@
+---
+description: Commits sempre em português, conventional, por funcionalidade, sem co-author
+alwaysApply: true
+---
+
+# Commits (todos os projetos)
+
+Quando o usuário pedir commit (ou o fluxo incluir commit):
+
+1. **Idioma**: mensagem em **português brasileiro**.
+2. **Conventional Commits**: `feat|fix|chore|docs|refactor|test|style|perf` + escopo opcional.
+3. **Um commit por funcionalidade**: se houver mudanças distintas, separar em commits focados (não misturar sync + UI + rules no mesmo commit).
+4. **Sem co-author**: nunca adicionar `Co-Authored-By` nem trailers de coautoria.
+5. **Corpo curto**: 1–2 frases no “porquê”, não listar arquivos.
+6. **Só commitar quando pedido** (ou quando o usuário deixar explícito no fluxo de ship).
+
+Exemplo:
+
+```
+feat(quando): elevar avisos na jornada
+
+Hoje mostra alertas acionáveis; stats usam o histórico acumulado.
+```
